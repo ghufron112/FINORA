@@ -18,7 +18,6 @@ import {
   ShieldCheck,
   Camera,
   FileText,
-  RefreshCw,
 } from "lucide-react";
 import { FinoraLogo } from "../common/FinoraLogo";
 
@@ -40,8 +39,6 @@ export const Topbar = () => {
     setActivePage,
     theme,
     toggleTheme,
-    refreshData,
-    loading,
   } = useFinance();
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -99,20 +96,6 @@ export const Topbar = () => {
           aria-label="Cari"
         >
           <Search className="w-4 h-4" />
-        </button>
-
-        {/* Cloud Sync Button (Manual Force Sync across laptop & HP) */}
-        <button
-          onClick={() => refreshData()}
-          title="Sinkronisasi Data Cloud (Multi-Device)"
-          className="p-2.5 rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-[#0F1D30]/70 hover:bg-slate-200 dark:hover:bg-[#142640] border border-slate-200/90 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 transition-all flex items-center"
-          aria-label="Sinkronisasi Data Cloud"
-        >
-          <RefreshCw
-            className={`w-4 h-4 sm:w-[18px] sm:h-[18px] text-teal-600 dark:text-teal-400 transition-transform ${
-              loading ? "animate-spin" : "hover:rotate-180 duration-500"
-            }`}
-          />
         </button>
 
         {/* Theme Switcher Toggle */}

@@ -244,78 +244,6 @@ export const FinanceProvider = ({ children }) => {
     }
   }, [loadData]);
 
-  // Realtime Supabase Database Sync across multiple devices (Laptop <-> HP)
-  useEffect(() => {
-    const activeUserId = session?.user?.id;
-    if (!activeUserId || !isSupabaseConfigured()) return;
-
-    const channelName = `realtime-user-sync-${activeUserId}`;
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "transactions",
-        },
-        (payload) => {
-          if (!payload.new?.user_id || payload.new.user_id === activeUserId || payload.old?.user_id === activeUserId) {
-            loadData(session);
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "budgets",
-        },
-        (payload) => {
-          if (!payload.new?.user_id || payload.new.user_id === activeUserId || payload.old?.user_id === activeUserId) {
-            loadData(session);
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "savings_goals",
-        },
-        (payload) => {
-          if (!payload.new?.user_id || payload.new.user_id === activeUserId || payload.old?.user_id === activeUserId) {
-            loadData(session);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [session?.user?.id, session, loadData]);
-
-  // Auto-sync revalidation when user switches tab or unlocks device
-  useEffect(() => {
-    if (!session) return;
-
-    const handleSyncOnFocus = () => {
-      if (document.visibilityState === "visible") {
-        loadData(session);
-      }
-    };
-
-    window.addEventListener("focus", handleSyncOnFocus);
-    document.addEventListener("visibilitychange", handleSyncOnFocus);
-
-    return () => {
-      window.removeEventListener("focus", handleSyncOnFocus);
-      document.removeEventListener("visibilitychange", handleSyncOnFocus);
-    };
-  }, [session, loadData]);
 
   // Global Keyboard shortcut for ⌘K / Ctrl+K
   useEffect(() => {
@@ -469,29 +397,11 @@ export const FinanceProvider = ({ children }) => {
   // ==========================================
   const addTransaction = async (txData) => {
     const activeUserId = session?.user?.id || financeService.cachedUserId || null;
-    const tempId = `tx-${Date.now()}`;
-    const optimisticItem = {
-      id: tempId,
-      title: txData.title,
-      amount: Number(txData.amount),
-      type: txData.type || "expense",
-      category: txData.category || "Lainnya",
-      date: txData.date || new Date().toISOString().split("T")[0],
-      paymentMethod: txData.paymentMethod || "Transfer",
-      note: txData.note || "",
-      synced: false,
-    };
+    const confirmedItem = await financeService.addTransaction(txData, activeUserId);
 
-    // 1. Persist locally first so user data is never lost or deleted under any circumstances
-    const currentLocals = financeService.getLocalTransactions(activeUserId);
-    financeService.saveLocalTransactions(activeUserId, [
-      optimisticItem,
-      ...currentLocals.filter((x) => x.id !== tempId),
-    ]);
-
-    // 2. Instant 0ms UI update
+    // Instant UI update
     setTransactions((prev) => {
-      const updated = [optimisticItem, ...prev.filter((x) => x.id !== tempId)];
+      const updated = [confirmedItem, ...prev.filter((x) => x.id !== confirmedItem.id)];
       setStats(financeService.computeStats(updated));
       setCashFlow(financeService.computeCashFlow(updated));
       setCategoryExpenses(financeService.computeCategoryExpenses(updated));
@@ -499,7 +409,7 @@ export const FinanceProvider = ({ children }) => {
       return updated;
     });
 
-    // 3. Instant notification
+    // Instant notification
     const isIncome = txData.type === "income";
     setNotifications((prev) => [
       {
@@ -513,34 +423,12 @@ export const FinanceProvider = ({ children }) => {
       ...prev,
     ]);
 
-    // 4. Background Cloud Sync (reconcile real Supabase ID)
-    financeService
-      .addTransaction(txData, activeUserId)
-      .then((confirmed) => {
-        setTransactions((prev) => {
-          const reconciled = prev.map((t) => (t.id === tempId ? confirmed : t));
-          setStats(financeService.computeStats(reconciled));
-          setCashFlow(financeService.computeCashFlow(reconciled));
-          setCategoryExpenses(financeService.computeCategoryExpenses(reconciled));
-          setFinancialHealth(financeService.computeFinancialHealth(reconciled));
-          return reconciled;
-        });
-      })
-      .catch((err) => {
-        console.warn("Background sync will retry automatically:", err);
-        // CRITICAL: NEVER DELETE USER DATA! Keep saved locally and auto-retry later
-      });
-
-    return optimisticItem;
+    return confirmedItem;
   };
 
   const deleteTransaction = async (id) => {
     const activeUserId = session?.user?.id || financeService.cachedUserId || null;
-    const currentLocals = financeService.getLocalTransactions(activeUserId);
-    financeService.saveLocalTransactions(
-      activeUserId,
-      currentLocals.filter((t) => t.id !== id)
-    );
+    await financeService.deleteTransaction(id, activeUserId);
 
     // Instant 0ms Optimistic Delete
     setTransactions((prev) => {
@@ -551,57 +439,19 @@ export const FinanceProvider = ({ children }) => {
       setFinancialHealth(financeService.computeFinancialHealth(updated));
       return updated;
     });
-
-    // Background Cloud Delete
-    if (!String(id).startsWith("tx-")) {
-      financeService.deleteTransaction(id).catch(console.error);
-    }
   };
 
   const addGoal = async (goalData) => {
-    const tempId = `g-${Date.now()}`;
-    const optimistic = {
-      id: tempId,
-      name: goalData.name,
-      title: goalData.name,
-      current: Number(goalData.current || 0),
-      target: Number(goalData.target),
-      percentage: Math.min(100, Math.round(((goalData.current || 0) / goalData.target) * 100)),
-      date: goalData.date || "2026-12-31",
-      color: goalData.color || "teal",
-      synced: false,
-    };
-
-    // Instant 0ms UI Update
-    setGoals((prev) => [...prev, optimistic]);
-
-    // Background Cloud Sync
-    financeService
-      .addGoal(goalData)
-      .then((confirmed) => {
-        setGoals((prev) => prev.map((g) => (g.id === tempId ? confirmed : g)));
-      })
-      .catch(console.error);
-
-    return optimistic;
+    const activeUserId = session?.user?.id || financeService.cachedUserId || null;
+    const confirmed = await financeService.addGoal(goalData, activeUserId);
+    setGoals((prev) => [...prev, confirmed]);
+    return confirmed;
   };
 
   const depositToGoal = async (goalId, amount) => {
-    // Instant 0ms Goal Deposit UI Update
-    setGoals((prev) =>
-      prev.map((g) => {
-        if (g.id === goalId) {
-          const newCurrent = Number(g.current || 0) + Number(amount);
-          const target = Number(g.target || 1);
-          return {
-            ...g,
-            current: newCurrent,
-            percentage: Math.min(100, Math.round((newCurrent / target) * 100)),
-          };
-        }
-        return g;
-      })
-    );
+    const activeUserId = session?.user?.id || financeService.cachedUserId || null;
+    const updatedGoals = await financeService.updateGoalDeposit(goalId, amount, activeUserId);
+    setGoals(updatedGoals);
 
     try {
       confetti({
@@ -612,33 +462,14 @@ export const FinanceProvider = ({ children }) => {
       });
     } catch {}
 
-    financeService.updateGoalDeposit(goalId, amount).catch(console.error);
+    return updatedGoals;
   };
 
   const addBudget = async (budgetData) => {
-    const tempId = `b-${Date.now()}`;
-    const optimistic = {
-      id: tempId,
-      category: budgetData.category,
-      spent: Number(budgetData.spent || 0),
-      limit: Number(budgetData.limit),
-      percentage: Math.round(((budgetData.spent || 0) / budgetData.limit) * 100),
-      isExceeded: (budgetData.spent || 0) > budgetData.limit,
-      synced: false,
-    };
-
-    // Instant 0ms UI Update
-    setBudgets((prev) => [...prev, optimistic]);
-
-    // Background Cloud Sync
-    financeService
-      .addBudget(budgetData)
-      .then((confirmed) => {
-        setBudgets((prev) => prev.map((b) => (b.id === tempId ? confirmed : b)));
-      })
-      .catch(console.error);
-
-    return optimistic;
+    const activeUserId = session?.user?.id || financeService.cachedUserId || null;
+    const confirmed = await financeService.addBudget(budgetData, activeUserId);
+    setBudgets((prev) => [...prev, confirmed]);
+    return confirmed;
   };
 
   const resetUserData = async () => {
