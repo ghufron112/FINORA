@@ -375,21 +375,23 @@ class FinanceService {
       dateIso = new Date().toISOString();
     }
 
+    const insertPayload = {
+      user_id: userId,
+      description: newTx.title,
+      amount: Number(newTx.amount),
+      type: newTx.type || "expense",
+      occurred_at: dateIso,
+      payment_method: newTx.paymentMethod || "Transfer",
+      note: newTx.note || "",
+    };
+    if (categoryId) {
+      insertPayload.category_id = categoryId;
+    }
+
     const { data, error } = await supabase
       .from("transactions")
-      .insert([
-        {
-          user_id: userId,
-          description: newTx.title,
-          amount: Number(newTx.amount),
-          type: newTx.type || "expense",
-          category_id: categoryId,
-          occurred_at: dateIso,
-          payment_method: newTx.paymentMethod || "Transfer",
-          note: newTx.note || "",
-        },
-      ])
-      .select("*, categories(name, color, icon)")
+      .insert([insertPayload])
+      .select()
       .single();
 
     if (error) {
@@ -402,17 +404,17 @@ class FinanceService {
       title: data.description,
       amount: Number(data.amount),
       type: data.type,
-      category: data.categories?.name || newTx.category || "Lainnya",
+      category: newTx.category || "Lainnya",
       date: data.occurred_at ? data.occurred_at.split("T")[0] : new Date().toISOString().split("T")[0],
       paymentMethod: data.payment_method || "Transfer",
       note: data.note || "",
-      accountId: data.account_id,
-      categoryId: data.category_id,
+      accountId: data.account_id || null,
+      categoryId: data.category_id || categoryId,
       synced: true,
     };
 
     const currentLocals = this.getLocalTransactions(userId);
-    const updatedLocals = [confirmedItem, ...currentLocals.filter((x) => x.id !== data.id)];
+    const updatedLocals = [confirmedItem, ...currentLocals.filter((x) => x.id !== data.id && x.id !== newTx.id)];
     this.saveLocalTransactions(userId, updatedLocals);
 
     return confirmedItem;

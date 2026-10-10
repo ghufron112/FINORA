@@ -481,9 +481,15 @@ export const FinanceProvider = ({ children }) => {
       synced: false,
     };
 
-    // 1. Instant 0ms UI update
+    // 1. Persist locally first so user data is never lost or deleted
+    if (activeUserId) {
+      const currentLocals = financeService.getLocalTransactions(activeUserId);
+      financeService.saveLocalTransactions(activeUserId, [optimisticItem, ...currentLocals.filter(x => x.id !== tempId)]);
+    }
+
+    // 2. Instant 0ms UI update
     setTransactions((prev) => {
-      const updated = [optimisticItem, ...prev];
+      const updated = [optimisticItem, ...prev.filter(x => x.id !== tempId)];
       setStats(financeService.computeStats(updated));
       setCashFlow(financeService.computeCashFlow(updated));
       setCategoryExpenses(financeService.computeCategoryExpenses(updated));
@@ -491,7 +497,7 @@ export const FinanceProvider = ({ children }) => {
       return updated;
     });
 
-    // 2. Instant notification
+    // 3. Instant notification
     const isIncome = txData.type === "income";
     setNotifications((prev) => [
       {
@@ -505,8 +511,7 @@ export const FinanceProvider = ({ children }) => {
       ...prev,
     ]);
 
-    // 3. Background Cloud Sync (reconcile real Supabase ID)
-    const activeUserId = session?.user?.id;
+    // 4. Background Cloud Sync (reconcile real Supabase ID)
     financeService
       .addTransaction(txData, activeUserId)
       .then((confirmed) => {
@@ -520,22 +525,14 @@ export const FinanceProvider = ({ children }) => {
         });
       })
       .catch((err) => {
-        console.error("Background sync transaction error:", err);
-        // Rollback optimistic update if server rejected it
-        setTransactions((prev) => {
-          const rolledBack = prev.filter((t) => t.id !== tempId);
-          setStats(financeService.computeStats(rolledBack));
-          setCashFlow(financeService.computeCashFlow(rolledBack));
-          setCategoryExpenses(financeService.computeCategoryExpenses(rolledBack));
-          setFinancialHealth(financeService.computeFinancialHealth(rolledBack));
-          return rolledBack;
-        });
+        console.warn("Background sync will retry automatically:", err);
+        // CRITICAL: NEVER DELETE USER DATA! Keep saved locally and auto-retry later
         setNotifications((prev) => [
           {
             id: Date.now(),
-            title: "Gagal Menyimpan ke Cloud",
-            message: err.message || "Transaksi gagal disimpan ke database Supabase.",
-            type: "error",
+            title: "Tersimpan di Perangkat (Offline)",
+            message: "Transaksi aman tersimpan di perangkat Anda dan akan disinkronkan ke cloud secara otomatis.",
+            type: "info",
             time: "Baru saja",
             read: false,
           },
