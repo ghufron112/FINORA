@@ -46,132 +46,86 @@ class FinanceService {
   // STORAGE KEYS & LOCAL CACHE HELPERS
   // ==========================================
   getTxStorageKey(userId) {
-    return userId ? `finora_user_tx_${userId}` : "finora_guest_tx";
+    return userId ? `finora_user_tx_${userId}` : null;
   }
 
   getBudgetsStorageKey(userId) {
-    return userId ? `finora_user_budgets_${userId}` : "finora_guest_budgets";
+    return userId ? `finora_user_budgets_${userId}` : null;
   }
 
   getGoalsStorageKey(userId) {
-    return userId ? `finora_user_goals_${userId}` : "finora_guest_goals";
+    return userId ? `finora_user_goals_${userId}` : null;
   }
 
   getLocalTransactions(userId) {
+    if (!userId) return [];
     try {
       const primaryKey = this.getTxStorageKey(userId);
+      if (!primaryKey) return [];
       const raw = localStorage.getItem(primaryKey);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-
-      // Check legacy storage key
-      const legacyRaw = localStorage.getItem(STORAGE_KEY_TX);
-      if (legacyRaw) {
-        const legacyParsed = JSON.parse(legacyRaw);
-        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
-          localStorage.setItem(primaryKey, JSON.stringify(legacyParsed));
-          return legacyParsed;
-        }
-      }
-
-      // If authenticated, also inherit any transactions added in guest mode
-      if (userId) {
-        const guestRaw = localStorage.getItem("finora_guest_tx");
-        if (guestRaw) {
-          const guestParsed = JSON.parse(guestRaw);
-          if (Array.isArray(guestParsed) && guestParsed.length > 0) {
-            localStorage.setItem(primaryKey, JSON.stringify(guestParsed));
-            return guestParsed;
-          }
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return [];
   }
 
   saveLocalTransactions(userId, list) {
+    if (!userId) return;
     try {
       const key = this.getTxStorageKey(userId);
-      localStorage.setItem(key, JSON.stringify(list));
-      localStorage.setItem(STORAGE_KEY_TX, JSON.stringify(list));
+      if (key) {
+        localStorage.setItem(key, JSON.stringify(list));
+      }
     } catch {}
   }
 
   getLocalBudgets(userId) {
+    if (!userId) return [];
     try {
       const primaryKey = this.getBudgetsStorageKey(userId);
+      if (!primaryKey) return [];
       const raw = localStorage.getItem(primaryKey);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      const legacyRaw = localStorage.getItem(STORAGE_KEY_BUDGETS);
-      if (legacyRaw) {
-        const legacyParsed = JSON.parse(legacyRaw);
-        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
-          localStorage.setItem(primaryKey, JSON.stringify(legacyParsed));
-          return legacyParsed;
-        }
-      }
-      if (userId) {
-        const guestRaw = localStorage.getItem("finora_guest_budgets");
-        if (guestRaw) {
-          const guestParsed = JSON.parse(guestRaw);
-          if (Array.isArray(guestParsed) && guestParsed.length > 0) {
-            localStorage.setItem(primaryKey, JSON.stringify(guestParsed));
-            return guestParsed;
-          }
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return [];
   }
 
   saveLocalBudgets(userId, list) {
+    if (!userId) return;
     try {
       const key = this.getBudgetsStorageKey(userId);
-      localStorage.setItem(key, JSON.stringify(list));
-      localStorage.setItem(STORAGE_KEY_BUDGETS, JSON.stringify(list));
+      if (key) {
+        localStorage.setItem(key, JSON.stringify(list));
+      }
     } catch {}
   }
 
   getLocalGoals(userId) {
+    if (!userId) return [];
     try {
       const primaryKey = this.getGoalsStorageKey(userId);
+      if (!primaryKey) return [];
       const raw = localStorage.getItem(primaryKey);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      const legacyRaw = localStorage.getItem(STORAGE_KEY_GOALS);
-      if (legacyRaw) {
-        const legacyParsed = JSON.parse(legacyRaw);
-        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
-          localStorage.setItem(primaryKey, JSON.stringify(legacyParsed));
-          return legacyParsed;
-        }
-      }
-      if (userId) {
-        const guestRaw = localStorage.getItem("finora_guest_goals");
-        if (guestRaw) {
-          const guestParsed = JSON.parse(guestRaw);
-          if (Array.isArray(guestParsed) && guestParsed.length > 0) {
-            localStorage.setItem(primaryKey, JSON.stringify(guestParsed));
-            return guestParsed;
-          }
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return [];
   }
 
   saveLocalGoals(userId, list) {
+    if (!userId) return;
     try {
       const key = this.getGoalsStorageKey(userId);
-      localStorage.setItem(key, JSON.stringify(list));
-      localStorage.setItem(STORAGE_KEY_GOALS, JSON.stringify(list));
+      if (key) {
+        localStorage.setItem(key, JSON.stringify(list));
+      }
     } catch {}
   }
 
@@ -374,21 +328,9 @@ class FinanceService {
             synced: true,
           }));
 
-          const remoteIds = new Set(remoteList.map((r) => String(r.id)));
-          const unsyncedLocals = localList.filter(
-            (l) => !remoteIds.has(String(l.id)) && (!l.synced || String(l.id).startsWith("tx-"))
-          );
-
-          const merged = [...remoteList, ...unsyncedLocals];
-          merged.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-
-          this.saveLocalTransactions(userId, merged);
-
-          if (unsyncedLocals.length > 0) {
-            this.syncUnsyncedTransactions(userId, unsyncedLocals);
-          }
-
-          return merged;
+          remoteList.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+          this.saveLocalTransactions(userId, remoteList);
+          return remoteList;
         } else if (localList.length > 0) {
           return localList;
         }
@@ -403,77 +345,71 @@ class FinanceService {
 
   async addTransaction(newTx) {
     const userId = await this.getAuthUserId();
-    const tempId = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    if (!userId) {
+      throw new Error("Sesi login Anda tidak aktif. Silakan masuk kembali.");
+    }
 
-    const txItem = {
-      id: tempId,
-      title: newTx.title,
-      amount: Number(newTx.amount),
-      type: newTx.type || "expense",
-      category: newTx.category || "Lainnya",
-      date: newTx.date || new Date().toISOString().split("T")[0],
-      paymentMethod: newTx.paymentMethod || "Transfer",
-      note: newTx.note || "",
-      synced: false,
+    let categoryId = null;
+    if (newTx.category) {
+      try {
+        const { data: cat } = await supabase
+          .from("categories")
+          .select("id")
+          .ilike("name", newTx.category)
+          .limit(1)
+          .maybeSingle();
+        if (cat?.id) categoryId = cat.id;
+      } catch {}
+    }
+
+    let dateIso;
+    try {
+      dateIso = newTx.date ? new Date(newTx.date).toISOString() : new Date().toISOString();
+    } catch {
+      dateIso = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert([
+        {
+          user_id: userId,
+          description: newTx.title,
+          amount: Number(newTx.amount),
+          type: newTx.type || "expense",
+          category_id: categoryId,
+          occurred_at: dateIso,
+          payment_method: newTx.paymentMethod || "Transfer",
+          note: newTx.note || "",
+        },
+      ])
+      .select("*, categories(name, color, icon)")
+      .single();
+
+    if (error) {
+      console.error("Gagal menyimpan transaksi ke Supabase:", error);
+      throw new Error("Gagal menyimpan ke server: " + (error.message || "Periksa koneksi Anda"));
+    }
+
+    const confirmedItem = {
+      id: data.id,
+      title: data.description,
+      amount: Number(data.amount),
+      type: data.type,
+      category: data.categories?.name || newTx.category || "Lainnya",
+      date: data.occurred_at ? data.occurred_at.split("T")[0] : new Date().toISOString().split("T")[0],
+      paymentMethod: data.payment_method || "Transfer",
+      note: data.note || "",
+      accountId: data.account_id,
+      categoryId: data.category_id,
+      synced: true,
     };
 
     const currentLocals = this.getLocalTransactions(userId);
-    const updatedLocals = [txItem, ...currentLocals.filter((x) => x.id !== tempId)];
+    const updatedLocals = [confirmedItem, ...currentLocals.filter((x) => x.id !== data.id)];
     this.saveLocalTransactions(userId, updatedLocals);
 
-    if (userId) {
-      try {
-        let categoryId = newTx.categoryId || null;
-        if (!categoryId && newTx.category) {
-          const { data: cat } = await supabase
-            .from("categories")
-            .select("id")
-            .ilike("name", newTx.category)
-            .limit(1)
-            .maybeSingle();
-          if (cat) categoryId = cat.id;
-        }
-
-        let dateIso;
-        try {
-          dateIso = newTx.date ? new Date(newTx.date).toISOString() : new Date().toISOString();
-        } catch {
-          dateIso = new Date().toISOString();
-        }
-
-        const { data, error } = await supabase
-          .from("transactions")
-          .insert([
-            {
-              user_id: userId,
-              description: newTx.title,
-              amount: Number(newTx.amount),
-              type: newTx.type || "expense",
-              category_id: categoryId,
-              occurred_at: dateIso,
-              payment_method: newTx.paymentMethod || "Transfer",
-              note: newTx.note || "",
-            },
-          ])
-          .select()
-          .single();
-
-        if (!error && data) {
-          const confirmedItem = {
-            ...txItem,
-            id: data.id,
-            synced: true,
-          };
-          const reconciled = updatedLocals.map((item) => (item.id === tempId ? confirmedItem : item));
-          this.saveLocalTransactions(userId, reconciled);
-          return confirmedItem;
-        }
-      } catch (err) {
-        console.warn("Supabase addTransaction notice (preserved locally):", err);
-      }
-    }
-
-    return txItem;
+    return confirmedItem;
   }
 
   async syncUnsyncedTransactions(userId, unsyncedList) {
@@ -707,11 +643,8 @@ class FinanceService {
             };
           });
 
-          const remoteIds = new Set(remoteList.map((r) => String(r.id)));
-          const unsynced = localBudgets.filter((l) => !remoteIds.has(String(l.id)));
-          const merged = [...remoteList, ...unsynced];
-          this.saveLocalBudgets(userId, merged);
-          return merged;
+          this.saveLocalBudgets(userId, remoteList);
+          return remoteList;
         } else if (localBudgets.length > 0) {
           return localBudgets;
         }
@@ -814,11 +747,8 @@ class FinanceService {
             };
           });
 
-          const remoteIds = new Set(remoteList.map((r) => String(r.id)));
-          const unsynced = localGoals.filter((l) => !remoteIds.has(String(l.id)));
-          const merged = [...remoteList, ...unsynced];
-          this.saveLocalGoals(userId, merged);
-          return merged;
+          this.saveLocalGoals(userId, remoteList);
+          return remoteList;
         } else if (localGoals.length > 0) {
           return localGoals;
         }
