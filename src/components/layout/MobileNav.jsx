@@ -98,17 +98,6 @@ export const MobileNav = () => {
                 );
               })}
             </div>
-
-            <button
-              onClick={() => {
-                setIsMenuDrawerOpen(false);
-                setIsGasModalOpen(true);
-              }}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-teal-50 dark:bg-teal-500/15 border border-teal-200 dark:border-teal-400/30 text-teal-700 dark:text-teal-300 text-xs font-semibold"
-            >
-              <Database className="w-4 h-4" />
-              <span>Database Supabase</span>
-            </button>
           </div>
         </div>
       )}

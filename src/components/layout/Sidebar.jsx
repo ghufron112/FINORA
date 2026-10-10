@@ -9,13 +9,17 @@ import {
   Target,
   CalendarDays,
   Sparkles,
-  Zap,
-  ChevronRight,
-  Database,
 } from "lucide-react";
 
 export const Sidebar = () => {
-  const { activePage, setActivePage, user, setIsGasModalOpen, setIsAuthModalOpen, session } = useFinance();
+  const {
+    activePage,
+    setActivePage,
+    user,
+    setIsAuthModalOpen,
+    setIsProfileModalOpen,
+    session,
+  } = useFinance();
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -84,38 +88,17 @@ export const Sidebar = () => {
         </div>
       </div>
 
-      {/* Bottom Area: Upgrade & Profile */}
-      <div className="space-y-3 pt-4 border-t border-slate-200/70 dark:border-white/[0.06]">
-        {/* Sync Google Sheets / Upgrade Card */}
-        <div className="relative rounded-2xl p-3.5 bg-gradient-to-br from-teal-50/90 via-sky-50/70 to-emerald-50/50 dark:from-[#0D243A]/90 dark:via-[#0B1B2D]/80 dark:to-[#081321] border border-teal-200/80 dark:border-teal-400/20 shadow-sm dark:shadow-lg group">
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-6 h-6 rounded-lg bg-teal-500/15 dark:bg-teal-400/20 flex items-center justify-center text-teal-600 dark:text-teal-300">
-              <Zap className="w-3.5 h-3.5 fill-current" />
-            </div>
-            <span className="text-xs font-semibold text-slate-800 dark:text-white">Finora Pro Student</span>
-          </div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mb-3">
-            Database PostgreSQL Supabase & Keamanan RLS aktif.
-          </p>
-          <button
-            onClick={() => setIsGasModalOpen(true)}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-white dark:bg-teal-500/15 hover:bg-teal-50 dark:hover:bg-teal-500/25 border border-teal-200 dark:border-teal-400/30 text-teal-700 dark:text-teal-300 text-xs font-medium transition-all shadow-xs"
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>Database Supabase</span>
-            <ChevronRight className="w-3 h-3 ml-auto opacity-70" />
-          </button>
-        </div>
+      {/* Bottom Area: User Profile */}
+      <div className="pt-4 border-t border-slate-200/70 dark:border-white/[0.06]">
 
         {/* User Profile Item */}
         <div
           onClick={() => {
             if (!session) setIsAuthModalOpen(true);
+            else setIsProfileModalOpen(true);
           }}
-          className={`flex items-center justify-between p-2 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/[0.04] ${
-            !session ? "cursor-pointer hover:border-teal-400/40" : ""
-          }`}
-          title={!session ? "Klik untuk Masuk / Daftar Akun" : "Akun Aktif"}
+          className="flex items-center justify-between p-2 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/[0.04] cursor-pointer hover:border-teal-400/40 hover:bg-slate-100/70 dark:hover:bg-white/[0.04] transition-all group"
+          title={!session ? "Klik untuk Masuk / Daftar Akun" : "Klik untuk Ubah Foto & Profil"}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative">

@@ -13,8 +13,8 @@ import { CalendarPage } from "./components/calendar/CalendarPage";
 import { InsightPage } from "./components/insight/InsightPage";
 import { AddTransactionModal } from "./components/transactions/AddTransactionModal";
 import { SearchModal } from "./components/common/SearchModal";
-import { SupabaseConfigModal } from "./components/common/SupabaseConfigModal";
 import { AuthModal } from "./components/auth/AuthModal";
+import { ProfileModal } from "./components/common/ProfileModal";
 import { SplashScreen } from "./components/common/SplashScreen";
 
 const MainLayout = () => {
@@ -64,8 +64,8 @@ const MainLayout = () => {
       {/* Global Interactive Modals */}
       <AddTransactionModal />
       <SearchModal />
-      <SupabaseConfigModal />
       <AuthModal />
+      <ProfileModal />
     </div>
   );
 };

@@ -27,6 +27,7 @@ export const FinanceProvider = ({ children }) => {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isDbModalOpen, setIsDbModalOpen] = useState(false); // Database / Supabase Modal
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // Login / Register Modal
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // Profile & Avatar Modal
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   // Theme state (default to light mode)
@@ -265,6 +266,12 @@ export const FinanceProvider = ({ children }) => {
     await loadData();
   };
 
+  const updateProfile = async ({ fullName, avatarUrl }) => {
+    const updated = await financeService.updateProfile({ fullName, avatarUrl });
+    await loadData();
+    return updated;
+  };
+
   const markAllNotificationsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
@@ -281,6 +288,7 @@ export const FinanceProvider = ({ children }) => {
     resetPassword,
     resetUserData,
     deleteAccount,
+    updateProfile,
     stats,
     transactions,
     budgets,
@@ -307,6 +315,8 @@ export const FinanceProvider = ({ children }) => {
     setIsGasModalOpen: setIsDbModalOpen,
     isAuthModalOpen,
     setIsAuthModalOpen,
+    isProfileModalOpen,
+    setIsProfileModalOpen,
     isNotificationOpen,
     setIsNotificationOpen,
     addTransaction,

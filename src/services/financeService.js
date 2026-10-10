@@ -69,10 +69,13 @@ class FinanceService {
           (authUser?.email ? authUser.email.split("@")[0] : null) ||
           "User";
 
+        const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(resolvedName)}&backgroundColor=0f766e,0d9488&textColor=ffffff`;
+
         return {
           name: resolvedName,
           email: authUser?.email || "user@finora.id",
-          avatar: profile?.avatar_url || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+          avatar: profile?.avatar_url || fallbackAvatar,
+          hasCustomAvatar: Boolean(profile?.avatar_url),
           role: "Pengguna",
           plan: "Supabase Cloud",
           currency: profile?.currency || "IDR",
@@ -81,7 +84,45 @@ class FinanceService {
         console.warn("Error fetching Supabase profile, using fallback:", err);
       }
     }
-    return { ...INITIAL_USER };
+
+    const guestFallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=User&backgroundColor=0f766e,0d9488&textColor=ffffff`;
+    return { ...INITIAL_USER, avatar: INITIAL_USER.avatar || guestFallbackAvatar };
+  }
+
+  // Update Profile (Name & Avatar from gallery)
+  async updateProfile({ fullName, avatarUrl }) {
+    const userId = await this.getAuthUserId();
+    if (userId) {
+      try {
+        const updatePayload = {
+          updated_at: new Date().toISOString(),
+        };
+        if (fullName !== undefined) updatePayload.full_name = fullName;
+        if (avatarUrl !== undefined) updatePayload.avatar_url = avatarUrl;
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .upsert({ id: userId, ...updatePayload })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        try {
+          const authUpdate = {};
+          if (fullName !== undefined) authUpdate.full_name = fullName;
+          if (avatarUrl !== undefined) authUpdate.avatar_url = avatarUrl;
+          await supabase.auth.updateUser({ data: authUpdate });
+        } catch {}
+
+        return data;
+      } catch (err) {
+        console.error("Supabase updateProfile error:", err);
+        throw err;
+      }
+    }
+
+    return null;
   }
 
   // ==========================================

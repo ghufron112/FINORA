@@ -10,13 +10,13 @@ import {
   ChevronDown,
   User,
   Settings,
-  Database,
   LogOut,
   Sun,
   Moon,
   RotateCcw,
   Trash2,
   ShieldCheck,
+  Camera,
 } from "lucide-react";
 import { FinoraLogo } from "../common/FinoraLogo";
 
@@ -27,8 +27,8 @@ export const Topbar = () => {
     markAllNotificationsRead,
     setIsAddTxModalOpen,
     setIsSearchModalOpen,
-    setIsGasModalOpen,
     setIsAuthModalOpen,
+    setIsProfileModalOpen,
     session,
     signOut,
     resetUserData,
@@ -217,35 +217,43 @@ export const Topbar = () => {
 
           {isProfileOpen && (
             <div className="absolute right-0 mt-3 w-64 rounded-2xl bg-white dark:bg-[#0D1B2D]/95 backdrop-blur-2xl border border-slate-200 dark:border-white/[0.1] shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="px-3 py-2.5 border-b border-slate-200/80 dark:border-white/[0.06] mb-1">
-                <p className="text-xs font-semibold text-slate-900 dark:text-white">{user?.name || "User"}</p>
+              <div
+                onClick={() => {
+                  setIsProfileModalOpen(true);
+                  setIsProfileOpen(false);
+                }}
+                className="px-3 py-2.5 border-b border-slate-200/80 dark:border-white/[0.06] mb-1 rounded-xl hover:bg-slate-50 dark:hover:bg-white/[0.03] cursor-pointer transition-colors group"
+                title="Klik untuk ubah foto profil dari galeri atau ganti nama"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                    {user?.name || "User"}
+                  </p>
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400 flex items-center gap-1 font-medium">
+                    <Camera className="w-3 h-3" />
+                    <span>Ubah Foto</span>
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">{user?.email || "Belum Masuk Akun"}</p>
                 <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-[10px] font-medium text-teal-700 dark:text-teal-300">
                   <span className={`w-1.5 h-1.5 rounded-full ${session ? "bg-emerald-500" : "bg-amber-400"}`} />
-                  {session ? "Akun Supabase Aktif" : "Mode Tamu"}
+                  {session ? "Akun Finora Aktif" : "Mode Tamu"}
                 </div>
               </div>
 
               <div className="space-y-0.5 text-xs text-slate-700 dark:text-slate-300">
                 <button
                   onClick={() => {
-                    setActivePage("dashboard");
+                    setIsProfileModalOpen(true);
                     setIsProfileOpen(false);
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
                 >
-                  <User className="w-4 h-4 text-slate-400" />
-                  <span>Profil Finansial</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setIsGasModalOpen(true);
-                    setIsProfileOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
-                >
-                  <Database className="w-4 h-4 text-teal-500" />
-                  <span>Database Supabase</span>
+                  <div className="flex items-center gap-2.5">
+                    <Camera className="w-4 h-4 text-teal-500" />
+                    <span>Ubah Foto & Profil</span>
+                  </div>
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">Galeri</span>
                 </button>
                 <button
                   onClick={() => {
@@ -255,7 +263,7 @@ export const Topbar = () => {
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
                 >
                   <User className="w-4 h-4 text-teal-500" />
-                  <span>{session ? "Akun Supabase Aktif" : "Masuk / Daftar Akun"}</span>
+                  <span>{session ? "Akun Finora Aktif" : "Masuk / Daftar Akun"}</span>
                 </button>
                 <button
                   onClick={() => {
