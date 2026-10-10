@@ -32,20 +32,6 @@ export const isSupabaseConfigured = () => {
   );
 };
 
-// Resilient fetch wrapper with exponential backoff for mobile WebKit & unstable cellular connections
-const resilientFetch = async (url, options = {}) => {
-  let attempts = 0;
-  while (attempts < 3) {
-    try {
-      return await fetch(url, options);
-    } catch (err) {
-      attempts++;
-      if (attempts >= 3) throw err;
-      await new Promise((resolve) => setTimeout(resolve, 600 * attempts));
-    }
-  }
-};
-
 // Create client or null dummy client if not configured yet
 export const supabase = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey, {
@@ -53,9 +39,6 @@ export const supabase = isSupabaseConfigured()
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-      },
-      global: {
-        fetch: resilientFetch,
       },
     })
   : createClient(

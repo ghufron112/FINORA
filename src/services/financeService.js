@@ -334,15 +334,44 @@ class FinanceService {
             synced: true,
           }));
 
-          remoteList.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-          this.saveLocalTransactions(userId, remoteList);
-          return remoteList;
+          // CRITICAL: NEVER WIPE UNSYNCED LOCAL TRANSACTIONS!
+          // Merge remote items with any local items that are still pending sync or offline
+          const latestLocals = this.getLocalTransactions(userId);
+          const pendingUnsynced = latestLocals.filter(
+            (t) => t.synced === false || String(t.id).startsWith("tx-")
+          );
+
+          const mergedMap = new Map();
+          // Remote items are source of truth for synced data
+          for (const r of remoteList) {
+            mergedMap.set(r.id, r);
+          }
+          // Add pending local items if not already matching a remote item
+          for (const p of pendingUnsynced) {
+            const matchRemote = remoteList.find(
+              (r) =>
+                r.id === p.id ||
+                (r.title === p.title &&
+                  Number(r.amount) === Number(p.amount) &&
+                  r.type === p.type &&
+                  r.date === p.date)
+            );
+            if (!matchRemote) {
+              mergedMap.set(p.id, p);
+            }
+          }
+
+          const finalList = Array.from(mergedMap.values());
+          finalList.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+          this.saveLocalTransactions(userId, finalList);
+          return finalList;
         } else if (localList.length > 0) {
           return localList;
         }
       } catch (err) {
-        console.warn("Supabase getTransactions failed:", err);
-        if (localList.length > 0) return localList;
+        console.warn("Supabase getTransactions failed, using local offline cache:", err);
+        return localList;
       }
     }
 
@@ -388,33 +417,54 @@ class FinanceService {
       insertPayload.category_id = categoryId;
     }
 
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert([insertPayload])
-      .select()
-      .single();
+    let serverRecord = null;
+    let lastError = null;
 
-    if (error) {
-      console.error("Gagal menyimpan transaksi ke Supabase:", error);
-      throw new Error("Gagal menyimpan ke server: " + (error.message || "Periksa koneksi Anda"));
+    // Retry once if cellular/mobile connection experienced temporary drop
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const { data, error } = await supabase
+          .from("transactions")
+          .insert([insertPayload])
+          .select()
+          .single();
+
+        if (error) {
+          lastError = error;
+        } else if (data) {
+          serverRecord = data;
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+      }
+
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+
+    if (!serverRecord) {
+      console.warn("Cloud save delayed, saved locally:", lastError);
+      throw new Error("Gagal menyimpan ke server: " + (lastError?.message || "Koneksi terputus"));
     }
 
     const confirmedItem = {
-      id: data.id,
-      title: data.description,
-      amount: Number(data.amount),
-      type: data.type,
+      id: serverRecord.id,
+      title: serverRecord.description,
+      amount: Number(serverRecord.amount),
+      type: serverRecord.type,
       category: newTx.category || "Lainnya",
-      date: data.occurred_at ? data.occurred_at.split("T")[0] : new Date().toISOString().split("T")[0],
-      paymentMethod: data.payment_method || "Transfer",
-      note: data.note || "",
-      accountId: data.account_id || null,
-      categoryId: data.category_id || categoryId,
+      date: serverRecord.occurred_at ? serverRecord.occurred_at.split("T")[0] : new Date().toISOString().split("T")[0],
+      paymentMethod: serverRecord.payment_method || "Transfer",
+      note: serverRecord.note || "",
+      accountId: serverRecord.account_id || null,
+      categoryId: serverRecord.category_id || categoryId,
       synced: true,
     };
 
     const currentLocals = this.getLocalTransactions(userId);
-    const updatedLocals = [confirmedItem, ...currentLocals.filter((x) => x.id !== data.id && x.id !== newTx.id)];
+    const updatedLocals = [confirmedItem, ...currentLocals.filter((x) => x.id !== serverRecord.id && x.id !== newTx.id)];
     this.saveLocalTransactions(userId, updatedLocals);
 
     return confirmedItem;

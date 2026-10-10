@@ -468,6 +468,7 @@ export const FinanceProvider = ({ children }) => {
   // TRANSACTION CRUD (Ultra-fast Optimistic Updates)
   // ==========================================
   const addTransaction = async (txData) => {
+    const activeUserId = session?.user?.id || financeService.cachedUserId || null;
     const tempId = `tx-${Date.now()}`;
     const optimisticItem = {
       id: tempId,
@@ -481,15 +482,16 @@ export const FinanceProvider = ({ children }) => {
       synced: false,
     };
 
-    // 1. Persist locally first so user data is never lost or deleted
-    if (activeUserId) {
-      const currentLocals = financeService.getLocalTransactions(activeUserId);
-      financeService.saveLocalTransactions(activeUserId, [optimisticItem, ...currentLocals.filter(x => x.id !== tempId)]);
-    }
+    // 1. Persist locally first so user data is never lost or deleted under any circumstances
+    const currentLocals = financeService.getLocalTransactions(activeUserId);
+    financeService.saveLocalTransactions(activeUserId, [
+      optimisticItem,
+      ...currentLocals.filter((x) => x.id !== tempId),
+    ]);
 
     // 2. Instant 0ms UI update
     setTransactions((prev) => {
-      const updated = [optimisticItem, ...prev.filter(x => x.id !== tempId)];
+      const updated = [optimisticItem, ...prev.filter((x) => x.id !== tempId)];
       setStats(financeService.computeStats(updated));
       setCashFlow(financeService.computeCashFlow(updated));
       setCategoryExpenses(financeService.computeCategoryExpenses(updated));
@@ -527,23 +529,19 @@ export const FinanceProvider = ({ children }) => {
       .catch((err) => {
         console.warn("Background sync will retry automatically:", err);
         // CRITICAL: NEVER DELETE USER DATA! Keep saved locally and auto-retry later
-        setNotifications((prev) => [
-          {
-            id: Date.now(),
-            title: "Tersimpan di Perangkat (Offline)",
-            message: "Transaksi aman tersimpan di perangkat Anda dan akan disinkronkan ke cloud secara otomatis.",
-            type: "info",
-            time: "Baru saja",
-            read: false,
-          },
-          ...prev,
-        ]);
       });
 
     return optimisticItem;
   };
 
   const deleteTransaction = async (id) => {
+    const activeUserId = session?.user?.id || financeService.cachedUserId || null;
+    const currentLocals = financeService.getLocalTransactions(activeUserId);
+    financeService.saveLocalTransactions(
+      activeUserId,
+      currentLocals.filter((t) => t.id !== id)
+    );
+
     // Instant 0ms Optimistic Delete
     setTransactions((prev) => {
       const updated = prev.filter((t) => t.id !== id);
@@ -555,7 +553,9 @@ export const FinanceProvider = ({ children }) => {
     });
 
     // Background Cloud Delete
-    financeService.deleteTransaction(id).catch(console.error);
+    if (!String(id).startsWith("tx-")) {
+      financeService.deleteTransaction(id).catch(console.error);
+    }
   };
 
   const addGoal = async (goalData) => {
