@@ -1,5 +1,5 @@
 // Finora Supabase Service Layer
-// Integrates Supabase PostgreSQL & Auth with fallback for offline preview
+// Integrates Supabase PostgreSQL & Auth with Bulletproof Local-First Dual Persistence & Background Cloud Sync
 
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import {
@@ -24,18 +24,151 @@ class FinanceService {
     this.isConfigured = isSupabaseConfigured();
   }
 
-  // Helper to get currently authenticated user ID
+  // ==========================================
+  // STORAGE KEYS & LOCAL CACHE HELPERS
+  // ==========================================
+  getTxStorageKey(userId) {
+    return userId ? `finora_user_tx_${userId}` : "finora_guest_tx";
+  }
+
+  getBudgetsStorageKey(userId) {
+    return userId ? `finora_user_budgets_${userId}` : "finora_guest_budgets";
+  }
+
+  getGoalsStorageKey(userId) {
+    return userId ? `finora_user_goals_${userId}` : "finora_guest_goals";
+  }
+
+  getLocalTransactions(userId) {
+    try {
+      const primaryKey = this.getTxStorageKey(userId);
+      const raw = localStorage.getItem(primaryKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+
+      // Check legacy storage key
+      const legacyRaw = localStorage.getItem(STORAGE_KEY_TX);
+      if (legacyRaw) {
+        const legacyParsed = JSON.parse(legacyRaw);
+        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+          localStorage.setItem(primaryKey, JSON.stringify(legacyParsed));
+          return legacyParsed;
+        }
+      }
+
+      // If authenticated, also inherit any transactions added in guest mode
+      if (userId) {
+        const guestRaw = localStorage.getItem("finora_guest_tx");
+        if (guestRaw) {
+          const guestParsed = JSON.parse(guestRaw);
+          if (Array.isArray(guestParsed) && guestParsed.length > 0) {
+            localStorage.setItem(primaryKey, JSON.stringify(guestParsed));
+            return guestParsed;
+          }
+        }
+      }
+    } catch {}
+    return [];
+  }
+
+  saveLocalTransactions(userId, list) {
+    try {
+      const key = this.getTxStorageKey(userId);
+      localStorage.setItem(key, JSON.stringify(list));
+      localStorage.setItem(STORAGE_KEY_TX, JSON.stringify(list));
+    } catch {}
+  }
+
+  getLocalBudgets(userId) {
+    try {
+      const primaryKey = this.getBudgetsStorageKey(userId);
+      const raw = localStorage.getItem(primaryKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const legacyRaw = localStorage.getItem(STORAGE_KEY_BUDGETS);
+      if (legacyRaw) {
+        const legacyParsed = JSON.parse(legacyRaw);
+        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+          localStorage.setItem(primaryKey, JSON.stringify(legacyParsed));
+          return legacyParsed;
+        }
+      }
+      if (userId) {
+        const guestRaw = localStorage.getItem("finora_guest_budgets");
+        if (guestRaw) {
+          const guestParsed = JSON.parse(guestRaw);
+          if (Array.isArray(guestParsed) && guestParsed.length > 0) {
+            localStorage.setItem(primaryKey, JSON.stringify(guestParsed));
+            return guestParsed;
+          }
+        }
+      }
+    } catch {}
+    return [];
+  }
+
+  saveLocalBudgets(userId, list) {
+    try {
+      const key = this.getBudgetsStorageKey(userId);
+      localStorage.setItem(key, JSON.stringify(list));
+      localStorage.setItem(STORAGE_KEY_BUDGETS, JSON.stringify(list));
+    } catch {}
+  }
+
+  getLocalGoals(userId) {
+    try {
+      const primaryKey = this.getGoalsStorageKey(userId);
+      const raw = localStorage.getItem(primaryKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const legacyRaw = localStorage.getItem(STORAGE_KEY_GOALS);
+      if (legacyRaw) {
+        const legacyParsed = JSON.parse(legacyRaw);
+        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+          localStorage.setItem(primaryKey, JSON.stringify(legacyParsed));
+          return legacyParsed;
+        }
+      }
+      if (userId) {
+        const guestRaw = localStorage.getItem("finora_guest_goals");
+        if (guestRaw) {
+          const guestParsed = JSON.parse(guestRaw);
+          if (Array.isArray(guestParsed) && guestParsed.length > 0) {
+            localStorage.setItem(primaryKey, JSON.stringify(guestParsed));
+            return guestParsed;
+          }
+        }
+      }
+    } catch {}
+    return [];
+  }
+
+  saveLocalGoals(userId, list) {
+    try {
+      const key = this.getGoalsStorageKey(userId);
+      localStorage.setItem(key, JSON.stringify(list));
+      localStorage.setItem(STORAGE_KEY_GOALS, JSON.stringify(list));
+    } catch {}
+  }
+
+  // ==========================================
+  // AUTH HELPER
+  // ==========================================
   async getAuthUserId() {
     if (!this.isConfigured) return null;
     try {
-      // 1. Check local session cache first (instant, avoids redundant network roundtrips)
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData?.session?.user?.id) {
         return sessionData.session.user.id;
       }
-      // 2. Fallback to getUser()
-      const { data: { user } } = await supabase.auth.getUser();
-      return user?.id || null;
+      const { data: authData } = await supabase.auth.getUser();
+      return authData?.user?.id || null;
     } catch {
       return null;
     }
@@ -145,6 +278,8 @@ class FinanceService {
   // ==========================================
   async getTransactions() {
     const userId = await this.getAuthUserId();
+    const localList = this.getLocalTransactions(userId);
+
     if (userId) {
       try {
         const { data, error } = await supabase
@@ -153,9 +288,8 @@ class FinanceService {
           .eq("user_id", userId)
           .order("occurred_at", { ascending: false });
 
-        if (!error) {
-          // Map PostgreSQL columns to Finora UI expected schema
-          return (data || []).map((t) => ({
+        if (!error && Array.isArray(data)) {
+          const remoteList = data.map((t) => ({
             id: t.id,
             title: t.description,
             amount: Number(t.amount),
@@ -166,28 +300,63 @@ class FinanceService {
             note: t.note || "",
             accountId: t.account_id,
             categoryId: t.category_id,
+            synced: true,
           }));
+
+          // Merge with any unsynced local transactions
+          const remoteIds = new Set(remoteList.map((r) => String(r.id)));
+          const unsyncedLocals = localList.filter(
+            (l) => !remoteIds.has(String(l.id)) && (!l.synced || String(l.id).startsWith("tx-"))
+          );
+
+          const merged = [...remoteList, ...unsyncedLocals];
+          merged.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+          this.saveLocalTransactions(userId, merged);
+
+          // Auto-sync in background if there were unsynced local rows
+          if (unsyncedLocals.length > 0) {
+            this.syncUnsyncedTransactions(userId, unsyncedLocals);
+          }
+
+          return merged;
+        } else if (localList.length > 0) {
+          // If Supabase returned error or empty, preserve user's local cache
+          return localList;
         }
-        return [];
       } catch (err) {
         console.warn("Supabase getTransactions failed:", err);
-        return [];
+        if (localList.length > 0) return localList;
       }
     }
 
-    // LocalStorage fallback only for unauthenticated guest preview
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_TX);
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    return [];
+    return localList;
   }
 
   async addTransaction(newTx) {
     const userId = await this.getAuthUserId();
+    const tempId = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    const txItem = {
+      id: tempId,
+      title: newTx.title,
+      amount: Number(newTx.amount),
+      type: newTx.type || "expense",
+      category: newTx.category || "Lainnya",
+      date: newTx.date || new Date().toISOString().split("T")[0],
+      paymentMethod: newTx.paymentMethod || "Transfer",
+      note: newTx.note || "",
+      synced: false,
+    };
+
+    // 1. Immediately persist to local cache so user never loses it
+    const currentLocals = this.getLocalTransactions(userId);
+    const updatedLocals = [txItem, ...currentLocals.filter((x) => x.id !== tempId)];
+    this.saveLocalTransactions(userId, updatedLocals);
+
+    // 2. Persist to Supabase if logged in
     if (userId) {
       try {
-        // Find matching category ID if category name was provided
         let categoryId = newTx.categoryId || null;
         if (!categoryId && newTx.category) {
           const { data: cat } = await supabase
@@ -199,9 +368,12 @@ class FinanceService {
           if (cat) categoryId = cat.id;
         }
 
-        const dateIso = newTx.date
-          ? new Date(newTx.date).toISOString()
-          : new Date().toISOString();
+        let dateIso;
+        try {
+          dateIso = newTx.date ? new Date(newTx.date).toISOString() : new Date().toISOString();
+        } catch {
+          dateIso = new Date().toISOString();
+        }
 
         const { data, error } = await supabase
           .from("transactions")
@@ -220,57 +392,97 @@ class FinanceService {
           .select()
           .single();
 
-        if (error) throw error;
-
-        return {
-          id: data.id,
-          title: data.description,
-          amount: Number(data.amount),
-          type: data.type,
-          category: newTx.category || "Lainnya",
-          date: data.occurred_at.split("T")[0],
-          paymentMethod: data.payment_method,
-          note: data.note,
-        };
+        if (!error && data) {
+          const confirmedItem = {
+            ...txItem,
+            id: data.id,
+            synced: true,
+          };
+          const reconciled = updatedLocals.map((item) => (item.id === tempId ? confirmedItem : item));
+          this.saveLocalTransactions(userId, reconciled);
+          return confirmedItem;
+        }
       } catch (err) {
-        console.error("Supabase addTransaction error:", err);
+        console.warn("Supabase addTransaction notice (preserved locally):", err);
       }
     }
 
-    // Fallback: local storage
-    const current = await this.getTransactions();
-    const txWithId = {
-      ...newTx,
-      id: `tx-${Date.now()}`,
-      amount: Number(newTx.amount),
-    };
-    const updated = [txWithId, ...current];
-    try {
-      localStorage.setItem(STORAGE_KEY_TX, JSON.stringify(updated));
-    } catch {}
-    return txWithId;
+    return txItem;
+  }
+
+  async syncUnsyncedTransactions(userId, unsyncedList) {
+    if (!userId || !unsyncedList?.length) return;
+    for (const tx of unsyncedList) {
+      try {
+        let categoryId = tx.categoryId || null;
+        if (!categoryId && tx.category) {
+          const { data: cat } = await supabase
+            .from("categories")
+            .select("id")
+            .ilike("name", tx.category)
+            .limit(1)
+            .maybeSingle();
+          if (cat) categoryId = cat.id;
+        }
+
+        let dateIso;
+        try {
+          dateIso = tx.date ? new Date(tx.date).toISOString() : new Date().toISOString();
+        } catch {
+          dateIso = new Date().toISOString();
+        }
+
+        const { data, error } = await supabase
+          .from("transactions")
+          .insert([
+            {
+              user_id: userId,
+              description: tx.title,
+              amount: Number(tx.amount),
+              type: tx.type || "expense",
+              category_id: categoryId,
+              occurred_at: dateIso,
+              payment_method: tx.paymentMethod || "Transfer",
+              note: tx.note || "",
+            },
+          ])
+          .select()
+          .single();
+
+        if (!error && data) {
+          const current = this.getLocalTransactions(userId);
+          const updated = current.map((item) =>
+            item.id === tx.id ? { ...item, id: data.id, synced: true } : item
+          );
+          this.saveLocalTransactions(userId, updated);
+        }
+      } catch (e) {
+        console.warn("Auto-sync transaction notice:", e);
+      }
+    }
   }
 
   async deleteTransaction(txId) {
     const userId = await this.getAuthUserId();
-    if (userId) {
+
+    // 1. Remove from local cache immediately
+    const currentLocals = this.getLocalTransactions(userId);
+    const updatedLocals = currentLocals.filter((t) => t.id !== txId);
+    this.saveLocalTransactions(userId, updatedLocals);
+
+    // 2. Remove from Supabase
+    if (userId && !String(txId).startsWith("tx-")) {
       try {
-        const { error } = await supabase
+        await supabase
           .from("transactions")
           .delete()
           .eq("id", txId)
           .eq("user_id", userId);
-        if (!error) return true;
       } catch (err) {
-        console.warn("Supabase deleteTransaction error:", err);
+        console.warn("Supabase deleteTransaction notice:", err);
       }
     }
 
-    const current = await this.getTransactions();
-    const updated = current.filter((t) => t.id !== txId);
-    try {
-      localStorage.setItem(STORAGE_KEY_TX, JSON.stringify(updated));
-    } catch {}
     return true;
   }
 
@@ -369,6 +581,9 @@ class FinanceService {
   // ==========================================
   async getBudgets() {
     const userId = await this.getAuthUserId();
+    const localBudgets = this.getLocalBudgets(userId);
+    const txs = await this.getTransactions();
+
     if (userId) {
       try {
         const { data, error } = await supabase
@@ -376,9 +591,8 @@ class FinanceService {
           .select("*")
           .eq("user_id", userId);
 
-        if (!error) {
-          const txs = await this.getTransactions();
-          return (data || []).map((b) => {
+        if (!error && Array.isArray(data)) {
+          const remoteList = data.map((b) => {
             const spent = txs
               .filter((t) => t.type === "expense" && t.category === b.category_name)
               .reduce((sum, t) => sum + Number(t.amount || 0), 0);
@@ -391,25 +605,54 @@ class FinanceService {
               limit,
               percentage,
               isExceeded: spent > limit,
+              synced: true,
             };
           });
+
+          const remoteIds = new Set(remoteList.map((r) => String(r.id)));
+          const unsynced = localBudgets.filter((l) => !remoteIds.has(String(l.id)));
+          const merged = [...remoteList, ...unsynced];
+          this.saveLocalBudgets(userId, merged);
+          return merged;
+        } else if (localBudgets.length > 0) {
+          return localBudgets;
         }
-        return [];
       } catch (err) {
-        console.warn("Supabase getBudgets failed:", err);
-        return [];
+        if (localBudgets.length > 0) return localBudgets;
       }
     }
 
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_BUDGETS);
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    return [];
+    return localBudgets.map((b) => {
+      const spent = txs
+        .filter((t) => t.type === "expense" && t.category === b.category)
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      const limit = Number(b.limit);
+      return {
+        ...b,
+        spent,
+        percentage: limit > 0 ? Math.round((spent / limit) * 100) : 0,
+        isExceeded: spent > limit,
+      };
+    });
   }
 
   async addBudget(newBudget) {
     const userId = await this.getAuthUserId();
+    const tempId = `b-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const budgetItem = {
+      id: tempId,
+      category: newBudget.category,
+      spent: Number(newBudget.spent || 0),
+      limit: Number(newBudget.limit),
+      percentage: Math.round(((newBudget.spent || 0) / newBudget.limit) * 100),
+      isExceeded: (newBudget.spent || 0) > newBudget.limit,
+      synced: false,
+    };
+
+    const currentLocals = this.getLocalBudgets(userId);
+    const updatedLocals = [...currentLocals, budgetItem];
+    this.saveLocalBudgets(userId, updatedLocals);
+
     if (userId) {
       try {
         const { data, error } = await supabase
@@ -425,32 +668,21 @@ class FinanceService {
           .single();
 
         if (!error && data) {
-          return {
+          const confirmed = {
+            ...budgetItem,
             id: data.id,
-            category: data.category_name,
-            spent: 0,
-            limit: Number(data.amount_limit),
-            percentage: 0,
-            isExceeded: false,
+            synced: true,
           };
+          const reconciled = updatedLocals.map((x) => (x.id === tempId ? confirmed : x));
+          this.saveLocalBudgets(userId, reconciled);
+          return confirmed;
         }
       } catch (err) {
-        console.warn("Supabase addBudget failed:", err);
+        console.warn("Supabase addBudget notice:", err);
       }
     }
 
-    const current = await this.getBudgets();
-    const budgetWithId = {
-      ...newBudget,
-      id: `b-${Date.now()}`,
-      spent: Number(newBudget.spent || 0),
-      limit: Number(newBudget.limit),
-      percentage: Math.round(((newBudget.spent || 0) / newBudget.limit) * 100),
-      isExceeded: (newBudget.spent || 0) > newBudget.limit,
-    };
-    const updated = [...current, budgetWithId];
-    localStorage.setItem(STORAGE_KEY_BUDGETS, JSON.stringify(updated));
-    return budgetWithId;
+    return budgetItem;
   }
 
   // ==========================================
@@ -458,6 +690,8 @@ class FinanceService {
   // ==========================================
   async getGoals() {
     const userId = await this.getAuthUserId();
+    const localGoals = this.getLocalGoals(userId);
+
     if (userId) {
       try {
         const { data, error } = await supabase
@@ -465,8 +699,8 @@ class FinanceService {
           .select("*")
           .eq("user_id", userId);
 
-        if (!error) {
-          return (data || []).map((g) => {
+        if (!error && Array.isArray(data)) {
+          const remoteList = data.map((g) => {
             const current = Number(g.current_amount || 0);
             const target = Number(g.target_amount);
             return {
@@ -478,25 +712,45 @@ class FinanceService {
               percentage: target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0,
               date: g.target_date || "2026-12-31",
               color: g.color || "teal",
+              synced: true,
             };
           });
+
+          const remoteIds = new Set(remoteList.map((r) => String(r.id)));
+          const unsynced = localGoals.filter((l) => !remoteIds.has(String(l.id)));
+          const merged = [...remoteList, ...unsynced];
+          this.saveLocalGoals(userId, merged);
+          return merged;
+        } else if (localGoals.length > 0) {
+          return localGoals;
         }
-        return [];
       } catch (err) {
-        console.warn("Supabase getGoals failed:", err);
-        return [];
+        if (localGoals.length > 0) return localGoals;
       }
     }
 
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY_GOALS);
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    return [];
+    return localGoals;
   }
 
   async addGoal(newGoal) {
     const userId = await this.getAuthUserId();
+    const tempId = `g-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const goalItem = {
+      id: tempId,
+      name: newGoal.name,
+      title: newGoal.name,
+      current: Number(newGoal.current || 0),
+      target: Number(newGoal.target),
+      percentage: Math.min(100, Math.round(((newGoal.current || 0) / newGoal.target) * 100)),
+      date: newGoal.date || "2026-12-31",
+      color: newGoal.color || "teal",
+      synced: false,
+    };
+
+    const currentLocals = this.getLocalGoals(userId);
+    const updatedLocals = [...currentLocals, goalItem];
+    this.saveLocalGoals(userId, updatedLocals);
+
     if (userId) {
       try {
         const { data, error } = await supabase
@@ -515,88 +769,76 @@ class FinanceService {
           .single();
 
         if (!error && data) {
-          const current = Number(data.current_amount || 0);
-          const target = Number(data.target_amount);
-          return {
+          const confirmed = {
+            ...goalItem,
             id: data.id,
-            name: data.name,
-            current,
-            target,
-            percentage: Math.min(100, Math.round((current / target) * 100)),
-            date: data.target_date,
-            color: data.color,
+            synced: true,
           };
+          const reconciled = updatedLocals.map((x) => (x.id === tempId ? confirmed : x));
+          this.saveLocalGoals(userId, reconciled);
+          return confirmed;
         }
       } catch (err) {
-        console.warn("Supabase addGoal failed:", err);
+        console.warn("Supabase addGoal notice:", err);
       }
     }
 
-    const current = await this.getGoals();
-    const goalWithId = {
-      ...newGoal,
-      id: `g-${Date.now()}`,
-      current: Number(newGoal.current || 0),
-      target: Number(newGoal.target),
-      percentage: Math.min(100, Math.round(((newGoal.current || 0) / newGoal.target) * 100)),
-    };
-    const updated = [...current, goalWithId];
-    localStorage.setItem(STORAGE_KEY_GOALS, JSON.stringify(updated));
-    return goalWithId;
+    return goalItem;
   }
 
   async updateGoalDeposit(goalId, amountToAdd) {
     const userId = await this.getAuthUserId();
-    if (userId) {
-      try {
-        const { data: currentGoal } = await supabase
-          .from("savings_goals")
-          .select("current_amount")
-          .eq("id", goalId)
-          .single();
 
-        if (currentGoal) {
-          const newCurrent = Number(currentGoal.current_amount || 0) + Number(amountToAdd);
-          await supabase
-            .from("savings_goals")
-            .update({ current_amount: newCurrent })
-            .eq("id", goalId);
-          return await this.getGoals();
-        }
-      } catch (err) {
-        console.warn("Supabase updateGoalDeposit failed:", err);
-      }
-    }
-
-    const current = await this.getGoals();
-    const updated = current.map((g) => {
+    // 1. Update local cache
+    const currentLocals = this.getLocalGoals(userId);
+    const updatedLocals = currentLocals.map((g) => {
       if (g.id === goalId) {
-        const newCurrent = g.current + Number(amountToAdd);
+        const newCurrent = Number(g.current || 0) + Number(amountToAdd);
+        const target = Number(g.target || 1);
         return {
           ...g,
           current: newCurrent,
-          percentage: Math.min(100, Math.round((newCurrent / g.target) * 100)),
+          percentage: Math.min(100, Math.round((newCurrent / target) * 100)),
         };
       }
       return g;
     });
-    localStorage.setItem(STORAGE_KEY_GOALS, JSON.stringify(updated));
-    return updated;
+    this.saveLocalGoals(userId, updatedLocals);
+
+    // 2. Update Supabase
+    if (userId && !String(goalId).startsWith("g-")) {
+      try {
+        const targetGoal = currentLocals.find((g) => g.id === goalId);
+        if (targetGoal) {
+          const newCurrent = Number(targetGoal.current || 0) + Number(amountToAdd);
+          await supabase
+            .from("savings_goals")
+            .update({ current_amount: newCurrent, updated_at: new Date().toISOString() })
+            .eq("id", goalId)
+            .eq("user_id", userId);
+        }
+      } catch (err) {
+        console.warn("Supabase updateGoalDeposit notice:", err);
+      }
+    }
+
+    return updatedLocals;
   }
 
   // ==========================================
-  // INSIGHTS & MONTHLY COMPARISON
+  // METRICS & ADVANCED INSIGHTS
   // ==========================================
   async getFinancialHealth() {
-    const stats = await this.getStats();
-    const ratio = stats.totalIncome > 0
-      ? Math.round(((stats.totalIncome - stats.totalExpense) / stats.totalIncome) * 100)
-      : 50;
-    const score = Math.max(30, Math.min(95, 60 + Math.round(ratio / 3)));
+    const txs = await this.getTransactions();
+    const income = txs.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
+    const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    const ratio = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+    const score = income === 0 ? 75 : Math.max(30, Math.min(95, 50 + ratio / 2));
 
     return {
-      score,
-      status: score >= 80 ? "Sangat Baik" : score >= 60 ? "Baik & Sehat" : "Perlu Perhatian",
+      score: Math.round(score),
+      grade: score >= 80 ? "Sangat Baik" : score >= 60 ? "Baik" : "Perlu Perhatian",
       savingsRate: `${Math.max(0, ratio)}%`,
       debtToIncome: "5%",
       emergencyFund: "4.2 Bulan",
@@ -616,8 +858,7 @@ class FinanceService {
     return this.resetUserData();
   }
 
-  // Resets financial transactions, budgets, and goals for the current user in Supabase
-  // Data is permanently preserved unless the user explicitly invokes this reset
+  // Resets financial transactions, budgets, and goals for the current user
   async resetUserData() {
     const userId = await this.getAuthUserId();
     if (userId) {
@@ -626,13 +867,18 @@ class FinanceService {
         await supabase.from("budgets").delete().eq("user_id", userId);
         await supabase.from("savings_goals").delete().eq("user_id", userId);
         await supabase.from("accounts").update({ current_balance: 0 }).eq("user_id", userId);
-        return true;
       } catch (err) {
-        console.error("Supabase resetUserData error:", err);
-        throw err;
+        console.warn("Supabase resetUserData notice:", err);
       }
+      localStorage.removeItem(this.getTxStorageKey(userId));
+      localStorage.removeItem(this.getBudgetsStorageKey(userId));
+      localStorage.removeItem(this.getGoalsStorageKey(userId));
+      return true;
     }
 
+    localStorage.removeItem("finora_guest_tx");
+    localStorage.removeItem("finora_guest_budgets");
+    localStorage.removeItem("finora_guest_goals");
     localStorage.removeItem(STORAGE_KEY_TX);
     localStorage.removeItem(STORAGE_KEY_BUDGETS);
     localStorage.removeItem(STORAGE_KEY_GOALS);
@@ -650,11 +896,12 @@ class FinanceService {
         await supabase.from("accounts").delete().eq("user_id", userId);
         await supabase.from("profiles").delete().eq("id", userId);
         await supabase.auth.signOut();
-        return true;
       } catch (err) {
-        console.error("Supabase deleteAccount error:", err);
-        throw err;
+        console.warn("Supabase deleteAccount notice:", err);
       }
+      localStorage.removeItem(this.getTxStorageKey(userId));
+      localStorage.removeItem(this.getBudgetsStorageKey(userId));
+      localStorage.removeItem(this.getGoalsStorageKey(userId));
     }
 
     localStorage.clear();

@@ -177,13 +177,11 @@ export const FinanceProvider = ({ children }) => {
 
     if (data?.user) {
       try {
-        await supabase.from("profiles").upsert({
-          id: data.user.id,
-          full_name: fullName || "User",
-          currency: "IDR",
+        await financeService.updateProfile({
+          fullName: fullName || "User",
         });
       } catch (err) {
-        console.warn("Could not upsert profile:", err);
+        console.warn("Could not sync profile metadata:", err);
       }
     }
 
@@ -211,13 +209,11 @@ export const FinanceProvider = ({ children }) => {
         const nameToSave =
           data.user.user_metadata?.full_name ||
           (data.user.email ? data.user.email.split("@")[0] : "User");
-        await supabase.from("profiles").upsert({
-          id: data.user.id,
-          full_name: nameToSave,
-          currency: "IDR",
+        await financeService.updateProfile({
+          fullName: nameToSave,
         });
       } catch (err) {
-        console.warn("Could not ensure profile:", err);
+        console.warn("Could not sync profile metadata:", err);
       }
     }
 
