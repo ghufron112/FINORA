@@ -69,6 +69,16 @@ class FinanceService {
           (authUser?.email ? authUser.email.split("@")[0] : null) ||
           "User";
 
+        if (!profile && authUser && resolvedName !== "User") {
+          try {
+            await supabase.from("profiles").upsert({
+              id: userId,
+              full_name: resolvedName,
+              currency: "IDR",
+            });
+          } catch {}
+        }
+
         const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(resolvedName)}&backgroundColor=0f766e,0d9488&textColor=ffffff`;
 
         return {

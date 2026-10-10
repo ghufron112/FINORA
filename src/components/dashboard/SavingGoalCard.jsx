@@ -33,7 +33,7 @@ export const SavingGoalCard = () => {
               Rencanakan impianmu seperti gadget baru, dana darurat, atau investasi.
             </p>
             <button
-              onClick={() => setIsAddGoalModalOpen(true)}
+              onClick={() => setActivePage("tujuan")}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-xs font-semibold transition-all"
             >
               <PlusCircle className="w-3.5 h-3.5" />

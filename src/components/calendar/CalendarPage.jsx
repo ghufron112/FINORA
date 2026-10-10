@@ -12,12 +12,12 @@ import {
 
 export const CalendarPage = () => {
   const { transactions } = useFinance();
-  const [selectedDay, setSelectedDay] = useState(6); // Default 6 Oktober
+  const [selectedDay, setSelectedDay] = useState(() => new Date().getDate() || 1);
 
   const daysInMonth = 31;
   const startDayOfWeek = 4; // Thursday
 
-  // Map transactions to days in October 2026
+  // Map transactions to days in the current month
   const transactionsByDay = useMemo(() => {
     const map = {};
     for (let i = 1; i <= daysInMonth; i++) {
@@ -34,9 +34,9 @@ export const CalendarPage = () => {
         const dayNum = d.getDate();
         if (dayNum >= 1 && dayNum <= daysInMonth) {
           if (tx.type === "income") {
-            map[dayNum].income += Number(tx.amount);
+            map[dayNum].income += Number(tx.amount || 0);
           } else {
-            map[dayNum].expense += Number(tx.amount);
+            map[dayNum].expense += Number(tx.amount || 0);
           }
           map[dayNum].items.push(tx);
         }
@@ -44,18 +44,6 @@ export const CalendarPage = () => {
         // ignore date error
       }
     });
-
-    if (map[6].income === 0) {
-      map[6].income = 500000;
-      map[6].items.unshift({
-        id: "tx-oct6-demo",
-        title: "Pemasukan Bonus Riset",
-        amount: 500000,
-        type: "income",
-        category: "Pemasukan",
-        paymentMethod: "Transfer",
-      });
-    }
 
     return map;
   }, [transactions]);
