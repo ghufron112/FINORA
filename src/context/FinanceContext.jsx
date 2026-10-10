@@ -82,31 +82,37 @@ export const FinanceProvider = ({ children }) => {
     }
   }, []);
 
-  // Supabase Auth session watcher
+  // Supabase Auth session watcher (Single source of truth)
   useEffect(() => {
     if (isSupabaseConfigured()) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-        setAuthLoading(false);
-        if (session) {
-          loadData();
-        }
-      });
-
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
         setSession(currentSession);
         setAuthLoading(false);
+
+        const currentUserId = currentSession?.user?.id || null;
+        financeService.setCachedUserId(currentUserId);
+
+        if (event === "SIGNED_OUT") {
+          financeService.handleSignOut();
+          setUser({
+            name: "User",
+            role: "Tamu",
+            email: "Belum masuk akun",
+            avatar: "https://api.dicebear.com/7.x/initials/svg?seed=User&backgroundColor=0f766e,0d9488&textColor=ffffff",
+            hasCustomAvatar: false,
+            plan: "Mode Tamu",
+            currency: "IDR",
+          });
+        }
+
         loadData();
       });
 
       return () => subscription.unsubscribe();
     } else {
       setAuthLoading(false);
+      loadData();
     }
-  }, [loadData]);
-
-  useEffect(() => {
-    loadData();
   }, [loadData]);
 
   // Global Keyboard shortcut for ⌘K / Ctrl+K
@@ -140,8 +146,8 @@ export const FinanceProvider = ({ children }) => {
     // If session returned immediately
     if (data?.session) {
       setSession(data.session);
+      financeService.setCachedUserId(data.session.user.id);
     } else {
-      // Attempt immediate sign in in case email confirmation is not required
       try {
         const { data: signInData } = await supabase.auth.signInWithPassword({
           email,
@@ -149,22 +155,19 @@ export const FinanceProvider = ({ children }) => {
         });
         if (signInData?.session) {
           setSession(signInData.session);
+          financeService.setCachedUserId(signInData.session.user.id);
           data.session = signInData.session;
         }
       } catch {}
     }
 
     if (data?.user) {
-      try {
-        await financeService.updateProfile({
-          fullName: fullName || "User",
-        });
-      } catch (err) {
-        console.warn("Could not sync profile metadata:", err);
-      }
+      financeService.updateProfile({
+        fullName: fullName || "User",
+      }).catch(() => {});
     }
 
-    await loadData();
+    loadData();
     return data;
   };
 
@@ -180,6 +183,7 @@ export const FinanceProvider = ({ children }) => {
 
     if (data?.session) {
       setSession(data.session);
+      financeService.setCachedUserId(data.session.user.id);
     }
 
     // Sync profile in background without blocking login
@@ -195,11 +199,25 @@ export const FinanceProvider = ({ children }) => {
   };
 
   const signOut = async () => {
-    if (isSupabaseConfigured()) {
-      await supabase.auth.signOut();
+    try {
+      setIsProfileModalOpen(false);
+      financeService.handleSignOut();
+      setUser({
+        name: "User",
+        role: "Tamu",
+        email: "Belum masuk akun",
+        avatar: "https://api.dicebear.com/7.x/initials/svg?seed=User&backgroundColor=0f766e,0d9488&textColor=ffffff",
+        hasCustomAvatar: false,
+        plan: "Mode Tamu",
+        currency: "IDR",
+      });
+      setSession(null);
+      if (isSupabaseConfigured()) {
+        await supabase.auth.signOut();
+      }
+    } catch (err) {
+      console.warn("Sign out notice:", err);
     }
-    setSession(null);
-    await loadData();
   };
 
   const resetPassword = async (email) => {

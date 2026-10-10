@@ -34,6 +34,14 @@ class FinanceService {
     }
   }
 
+  setCachedUserId(userId) {
+    this.cachedUserId = userId || null;
+  }
+
+  handleSignOut() {
+    this.cachedUserId = null;
+  }
+
   // ==========================================
   // STORAGE KEYS & LOCAL CACHE HELPERS
   // ==========================================

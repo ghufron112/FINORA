@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useFinance } from "../../context/FinanceContext";
 import { X, Mail, Lock, User, ArrowRight, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
 
@@ -11,6 +11,15 @@ export const AuthModal = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  useEffect(() => {
+    if (isAuthModalOpen) {
+      setErrorMsg("");
+      setSuccessMsg("");
+      setLoading(false);
+      setPassword("");
+    }
+  }, [isAuthModalOpen]);
 
   if (!isAuthModalOpen) return null;
 
