@@ -1,6 +1,10 @@
 // Supabase Client Configuration for FINORA
 import { createClient } from "@supabase/supabase-js";
 
+// Default credentials for deployment fallback (Vercel)
+const DEFAULT_SUPABASE_URL = "https://ecxeirvomtkhbdwgjjul.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjeGVpcnZvbXRraGJkd2dqanVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1OTcyMDksImV4cCI6MjEwNzE3MzIwOX0.AqAAm86JsSKZnLg7S1Kb_HjNyitLsaQXcDgdkhzX49U";
+
 // Read from environment variables, with optional fallback from localStorage for interactive setup
 const envUrl = import.meta.env.VITE_SUPABASE_URL;
 const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -16,8 +20,8 @@ const cleanUrl = (raw) => {
   return u;
 };
 
-export const supabaseUrl = cleanUrl(envUrl || localUrl || "");
-export const supabaseAnonKey = (envAnonKey || localAnonKey || "").trim();
+export const supabaseUrl = cleanUrl(envUrl || localUrl || DEFAULT_SUPABASE_URL);
+export const supabaseAnonKey = (envAnonKey || localAnonKey || DEFAULT_SUPABASE_ANON_KEY).trim();
 
 export const isSupabaseConfigured = () => {
   return Boolean(
