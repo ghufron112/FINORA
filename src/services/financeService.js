@@ -301,8 +301,8 @@ class FinanceService {
   // ==========================================
   // TRANSACTIONS (CRUD)
   // ==========================================
-  async getTransactions() {
-    const userId = await this.getAuthUserId();
+  async getTransactions(explicitUserId = null) {
+    const userId = explicitUserId || (await this.getAuthUserId());
     const localList = this.getLocalTransactions(userId);
 
     if (userId) {
@@ -613,10 +613,10 @@ class FinanceService {
   // ==========================================
   // BUDGETS (CRUD)
   // ==========================================
-  async getBudgets(prefetchedTxs = null) {
-    const userId = await this.getAuthUserId();
+  async getBudgets(prefetchedTxs = null, explicitUserId = null) {
+    const userId = explicitUserId || (await this.getAuthUserId());
     const localBudgets = this.getLocalBudgets(userId);
-    const txs = prefetchedTxs || (await this.getTransactions());
+    const txs = prefetchedTxs || (await this.getTransactions(userId));
 
     if (userId) {
       try {
@@ -719,8 +719,8 @@ class FinanceService {
   // ==========================================
   // SAVINGS GOALS (CRUD)
   // ==========================================
-  async getGoals() {
-    const userId = await this.getAuthUserId();
+  async getGoals(explicitUserId = null) {
+    const userId = explicitUserId || (await this.getAuthUserId());
     const localGoals = this.getLocalGoals(userId);
 
     if (userId) {
@@ -859,15 +859,19 @@ class FinanceService {
     const isGuest = activeAuthUser === null && !this.cachedUserId;
     const userId = activeAuthUser ? activeAuthUser.id : (isGuest ? null : await this.getAuthUserId());
 
-    // 1. Fetch data concurrently
+    if (userId) {
+      this.setCachedUserId(userId);
+    }
+
+    // 1. Fetch data concurrently with direct userId
     const [userData, txList, goalList] = await Promise.all([
       this.getUser(activeAuthUser),
-      this.getTransactions(),
-      this.getGoals(),
+      this.getTransactions(userId),
+      this.getGoals(userId),
     ]);
 
-    // 2. Fetch budgets with prefetched transactions (no duplicate transaction query!)
-    const budgetList = await this.getBudgets(txList);
+    // 2. Fetch budgets with prefetched transactions and direct userId
+    const budgetList = await this.getBudgets(txList, userId);
 
     // 3. Compute stats, cash flow, categories, health in-memory with 0ms delay!
     const statsData = this.computeStats(txList);

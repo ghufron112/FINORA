@@ -244,6 +244,76 @@ export const FinanceProvider = ({ children }) => {
     }
   }, [loadData]);
 
+  // Realtime Supabase Database Sync across multiple devices (Laptop <-> HP)
+  useEffect(() => {
+    const activeUserId = session?.user?.id;
+    if (!activeUserId || !isSupabaseConfigured()) return;
+
+    const channelName = `realtime-user-sync-${activeUserId}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "transactions",
+          filter: `user_id=eq.${activeUserId}`,
+        },
+        () => {
+          loadData(session);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "budgets",
+          filter: `user_id=eq.${activeUserId}`,
+        },
+        () => {
+          loadData(session);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "savings_goals",
+          filter: `user_id=eq.${activeUserId}`,
+        },
+        () => {
+          loadData(session);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, session, loadData]);
+
+  // Auto-sync revalidation when user switches tab or unlocks device
+  useEffect(() => {
+    if (!session) return;
+
+    const handleSyncOnFocus = () => {
+      if (document.visibilityState === "visible") {
+        loadData(session);
+      }
+    };
+
+    window.addEventListener("focus", handleSyncOnFocus);
+    document.addEventListener("visibilitychange", handleSyncOnFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleSyncOnFocus);
+      document.removeEventListener("visibilitychange", handleSyncOnFocus);
+    };
+  }, [session, loadData]);
+
   // Global Keyboard shortcut for ⌘K / Ctrl+K
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -436,12 +506,37 @@ export const FinanceProvider = ({ children }) => {
     financeService
       .addTransaction(txData)
       .then((confirmed) => {
-        setTransactions((prev) =>
-          prev.map((t) => (t.id === tempId ? confirmed : t))
-        );
+        setTransactions((prev) => {
+          const reconciled = prev.map((t) => (t.id === tempId ? confirmed : t));
+          setStats(financeService.computeStats(reconciled));
+          setCashFlow(financeService.computeCashFlow(reconciled));
+          setCategoryExpenses(financeService.computeCategoryExpenses(reconciled));
+          setFinancialHealth(financeService.computeFinancialHealth(reconciled));
+          return reconciled;
+        });
       })
       .catch((err) => {
         console.error("Background sync transaction error:", err);
+        // Rollback optimistic update if server rejected it
+        setTransactions((prev) => {
+          const rolledBack = prev.filter((t) => t.id !== tempId);
+          setStats(financeService.computeStats(rolledBack));
+          setCashFlow(financeService.computeCashFlow(rolledBack));
+          setCategoryExpenses(financeService.computeCategoryExpenses(rolledBack));
+          setFinancialHealth(financeService.computeFinancialHealth(rolledBack));
+          return rolledBack;
+        });
+        setNotifications((prev) => [
+          {
+            id: Date.now(),
+            title: "Gagal Menyimpan ke Cloud",
+            message: err.message || "Transaksi gagal disimpan ke database Supabase.",
+            type: "error",
+            time: "Baru saja",
+            read: false,
+          },
+          ...prev,
+        ]);
       });
 
     return optimisticItem;

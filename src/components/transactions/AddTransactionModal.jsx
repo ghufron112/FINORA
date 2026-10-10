@@ -39,11 +39,14 @@ export const AddTransactionModal = () => {
     e.preventDefault();
     if (!title || !amount) return;
 
+    const cleanAmount = Number(String(amount).replace(/[^0-9]/g, ""));
+    if (!cleanAmount || cleanAmount <= 0) return;
+
     const payload = {
       type,
       title: title.trim(),
-      amount: Number(amount),
-      category,
+      amount: cleanAmount,
+      category: category === "Pemasukan" ? "Gaji" : category,
       date,
       paymentMethod,
       note: note.trim(),
@@ -118,7 +121,7 @@ export const AddTransactionModal = () => {
             type="button"
             onClick={() => {
               setType("income");
-              setCategory("Pemasukan");
+              setCategory("Gaji");
             }}
             className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
               type === "income"
