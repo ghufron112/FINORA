@@ -202,20 +202,24 @@ export const FinanceProvider = ({ children }) => {
 
   // Supabase Auth session watcher (Single source of truth)
   useEffect(() => {
+    let isMounted = true;
+
     if (isSupabaseConfigured()) {
       supabase.auth.getSession().then(({ data }) => {
+        if (!isMounted) return;
         if (data?.session) {
-          setSession(data.session);
+          setSession({ ...data.session });
           financeService.setCachedUserId(data.session.user.id);
           loadData(data.session);
-        } else if (!initialSession) {
-          setSession(null);
-          setUser(null);
+        } else {
+          // Do not wipe session if user has just logged in
+          setSession((prev) => prev || null);
         }
         setAuthLoading(false);
       });
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+        if (!isMounted) return;
         setAuthLoading(false);
 
         if (event === "SIGNED_OUT") {
@@ -224,18 +228,21 @@ export const FinanceProvider = ({ children }) => {
           setUser(null);
           loadData(null);
         } else if (currentSession) {
-          setSession(currentSession);
+          setSession({ ...currentSession });
           financeService.setCachedUserId(currentSession.user.id);
           loadData(currentSession);
         }
       });
 
-      return () => subscription.unsubscribe();
+      return () => {
+        isMounted = false;
+        subscription.unsubscribe();
+      };
     } else {
       setAuthLoading(false);
       loadData(null);
     }
-  }, [loadData, initialSession]);
+  }, [loadData]);
 
   // Global Keyboard shortcut for ⌘K / Ctrl+K
   useEffect(() => {
@@ -284,10 +291,22 @@ export const FinanceProvider = ({ children }) => {
     }
 
     if (activeSession) {
-      setSession(activeSession);
       financeService.setCachedUserId(activeSession.user.id);
+      const resolvedAvatar =
+        activeSession.user?.user_metadata?.avatar_url ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanEmail)}&backgroundColor=0f766e,0d9488&textColor=ffffff`;
+
+      setUser({
+        name: cleanName,
+        email: cleanEmail,
+        avatar: resolvedAvatar,
+        role: "Pengguna Finora",
+        plan: "Supabase Cloud",
+      });
+      setSession({ ...activeSession });
+      setAuthLoading(false);
       financeService.updateProfile({ fullName: cleanName }).catch(() => {});
-      loadData(activeSession); // Non-blocking load for ultra-fast transition
+      loadData(activeSession);
       return { success: true, session: activeSession, user: activeSession.user };
     }
 
@@ -312,8 +331,28 @@ export const FinanceProvider = ({ children }) => {
     if (error) throw error;
 
     if (data?.session) {
-      setSession(data.session);
       financeService.setCachedUserId(data.session.user.id);
+
+      const resolvedName =
+        data.user?.user_metadata?.full_name ||
+        (data.user?.email ? data.user.email.split("@")[0] : "Pengguna");
+      const resolvedAvatar =
+        data.user?.user_metadata?.avatar_url ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+          data.user?.email || "Pengguna"
+        )}&backgroundColor=0f766e,0d9488&textColor=ffffff`;
+
+      setUser({
+        name: resolvedName,
+        email: data.user?.email,
+        avatar: resolvedAvatar,
+        role: "Pengguna Finora",
+        plan: "Supabase Cloud",
+      });
+
+      // Instantly activate session with fresh object copy to trigger immediate re-render
+      setSession({ ...data.session });
+      setAuthLoading(false);
     }
 
     if (data?.user) {
