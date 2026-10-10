@@ -5,20 +5,89 @@ import confetti from "canvas-confetti";
 
 const FinanceContext = createContext(null);
 
+const getInitialStoredSession = () => {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+        const val = localStorage.getItem(key);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (parsed?.user || parsed?.access_token) {
+            return parsed;
+          }
+        }
+      }
+    }
+  } catch {}
+  return null;
+};
+
 export const FinanceProvider = ({ children }) => {
+  const initialSession = getInitialStoredSession();
+  const initialUser = initialSession?.user || null;
+  const initialUserId = initialUser?.id || null;
+
   const [activePage, setActivePage] = useState("dashboard");
-  const [session, setSession] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [user, setUser] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [transactions, setTransactions] = useState([]);
-  const [budgets, setBudgets] = useState([]);
-  const [goals, setGoals] = useState([]);
-  const [cashFlow, setCashFlow] = useState([]);
-  const [categoryExpenses, setCategoryExpenses] = useState([]);
+  const [session, setSession] = useState(initialSession);
+  const [authLoading, setAuthLoading] = useState(() => !initialSession && isSupabaseConfigured());
+  const [user, setUser] = useState(() => {
+    if (initialUser) {
+      return {
+        name:
+          initialUser.user_metadata?.full_name ||
+          (initialUser.email ? initialUser.email.split("@")[0] : "Pengguna"),
+        email: initialUser.email,
+        avatar:
+          initialUser.user_metadata?.avatar_url ||
+          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+            initialUser.email || "Pengguna"
+          )}&backgroundColor=0f766e,0d9488&textColor=ffffff`,
+        role: "Pengguna Finora",
+      };
+    }
+    return null;
+  });
+
+  const [transactions, setTransactions] = useState(() => {
+    return initialUserId ? financeService.getLocalTransactions(initialUserId) : [];
+  });
+  const [budgets, setBudgets] = useState(() => {
+    return initialUserId ? financeService.getLocalBudgets(initialUserId) : [];
+  });
+  const [goals, setGoals] = useState(() => {
+    return initialUserId ? financeService.getLocalGoals(initialUserId) : [];
+  });
+  const [stats, setStats] = useState(() => {
+    if (initialUserId) {
+      const txs = financeService.getLocalTransactions(initialUserId);
+      return financeService.computeStats(txs);
+    }
+    return null;
+  });
+  const [cashFlow, setCashFlow] = useState(() => {
+    if (initialUserId) {
+      const txs = financeService.getLocalTransactions(initialUserId);
+      return financeService.computeCashFlow(txs);
+    }
+    return [];
+  });
+  const [categoryExpenses, setCategoryExpenses] = useState(() => {
+    if (initialUserId) {
+      const txs = financeService.getLocalTransactions(initialUserId);
+      return financeService.computeCategoryExpenses(txs);
+    }
+    return [];
+  });
+  const [financialHealth, setFinancialHealth] = useState(() => {
+    if (initialUserId) {
+      const txs = financeService.getLocalTransactions(initialUserId);
+      return financeService.computeFinancialHealth(txs);
+    }
+    return null;
+  });
   const [insights, setInsights] = useState([]);
-  const [financialHealth, setFinancialHealth] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Modals state
   const [isAddTxModalOpen, setIsAddTxModalOpen] = useState(false);
@@ -134,6 +203,18 @@ export const FinanceProvider = ({ children }) => {
   // Supabase Auth session watcher (Single source of truth)
   useEffect(() => {
     if (isSupabaseConfigured()) {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data?.session) {
+          setSession(data.session);
+          financeService.setCachedUserId(data.session.user.id);
+          loadData(data.session);
+        } else if (!initialSession) {
+          setSession(null);
+          setUser(null);
+        }
+        setAuthLoading(false);
+      });
+
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
         setAuthLoading(false);
 
@@ -142,7 +223,9 @@ export const FinanceProvider = ({ children }) => {
           setSession(null);
           setUser(null);
           loadData(null);
-        } else {
+        } else if (currentSession) {
+          setSession(currentSession);
+          financeService.setCachedUserId(currentSession.user.id);
           loadData(currentSession);
         }
       });
@@ -152,7 +235,7 @@ export const FinanceProvider = ({ children }) => {
       setAuthLoading(false);
       loadData(null);
     }
-  }, [loadData]);
+  }, [loadData, initialSession]);
 
   // Global Keyboard shortcut for ⌘K / Ctrl+K
   useEffect(() => {

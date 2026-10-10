@@ -75,8 +75,8 @@ const MainLayout = () => {
 const AppContent = () => {
   const { session, authLoading } = useFinance();
 
-  // Loading screen while checking Supabase auth session
-  if (authLoading) {
+  // Loading screen only if checking auth without any cached session
+  if (authLoading && !session) {
     return (
       <div className="min-h-screen w-full bg-[#050B14] flex flex-col items-center justify-center text-white">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-emerald-400 p-0.5 shadow-2xl mb-4 animate-pulse">
@@ -88,7 +88,7 @@ const AppContent = () => {
         </div>
         <div className="flex items-center gap-2 text-teal-400 text-xs font-semibold">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Memverifikasi Sesi Finora...</span>
+          <span>Membuka Ruang Finansial...</span>
         </div>
       </div>
     );
