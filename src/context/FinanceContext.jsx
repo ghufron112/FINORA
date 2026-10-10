@@ -102,15 +102,7 @@ export const FinanceProvider = ({ children }) => {
         if (event === "SIGNED_OUT") {
           financeService.handleSignOut();
           setSession(null);
-          setUser({
-            name: "User",
-            role: "Tamu",
-            email: "Belum masuk akun",
-            avatar: "https://api.dicebear.com/7.x/initials/svg?seed=User&backgroundColor=0f766e,0d9488&textColor=ffffff",
-            hasCustomAvatar: false,
-            plan: "Mode Tamu",
-            currency: "IDR",
-          });
+          setUser(null);
           loadData(null);
         } else {
           loadData(currentSession);
@@ -222,15 +214,7 @@ export const FinanceProvider = ({ children }) => {
       setIsProfileModalOpen(false);
       financeService.handleSignOut();
       setSession(null);
-      setUser({
-        name: "User",
-        role: "Tamu",
-        email: "Belum masuk akun",
-        avatar: "https://api.dicebear.com/7.x/initials/svg?seed=User&backgroundColor=0f766e,0d9488&textColor=ffffff",
-        hasCustomAvatar: false,
-        plan: "Mode Tamu",
-        currency: "IDR",
-      });
+      setUser(null);
       if (isSupabaseConfigured()) {
         await supabase.auth.signOut();
       }

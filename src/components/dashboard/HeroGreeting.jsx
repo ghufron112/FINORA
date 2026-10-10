@@ -3,10 +3,9 @@ import { useFinance } from "../../context/FinanceContext";
 import { Sparkles, Calendar, ArrowUpRight } from "lucide-react";
 
 export const HeroGreeting = () => {
-  const { user, session, setActivePage } = useFinance();
+  const { user, setActivePage } = useFinance();
 
-  const displayName = session ? (user?.name || "User") : "User";
-  const firstName = displayName.split(" ")[0] || "User";
+  const firstName = user?.name ? user.name.split(" ")[0] : "Pengguna";
 
   return (
     <div className="relative mb-6 sm:mb-8">

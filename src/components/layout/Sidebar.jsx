@@ -93,32 +93,25 @@ export const Sidebar = () => {
 
         {/* User Profile Item */}
         <div
-          onClick={() => {
-            if (!session) setIsAuthModalOpen(true);
-            else setIsProfileModalOpen(true);
-          }}
+          onClick={() => setIsProfileModalOpen(true)}
           className="flex items-center justify-between p-2 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/[0.04] cursor-pointer hover:border-teal-400/40 hover:bg-slate-100/70 dark:hover:bg-white/[0.04] transition-all group"
-          title={!session ? "Klik untuk Masuk / Daftar Akun" : "Klik untuk Ubah Foto & Profil"}
+          title="Klik untuk Kelola Akun & Foto Profil"
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative">
               <img
-                src={session && user?.avatar ? user.avatar : "https://api.dicebear.com/7.x/avataaars/svg?seed=GuestFinora"}
-                alt={session ? (user?.name || "User") : "User"}
+                src={user?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100"}
+                alt={user?.name || "Pengguna"}
                 className="w-9 h-9 rounded-xl object-cover border border-teal-500/30"
               />
-              <span
-                className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#050B14] ${
-                  session ? "bg-emerald-500" : "bg-amber-400"
-                }`}
-              />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#050B14] bg-emerald-500" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-800 dark:text-white truncate">
-                {session ? (user?.name || "User") : "User"}
+                {user?.name || "Pengguna"}
               </p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                {session ? (user?.role || "Pengguna") : "Tamu"}
+                {user?.role || "Pengguna Finora"}
               </p>
             </div>
           </div>
@@ -126,11 +119,10 @@ export const Sidebar = () => {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (!session) setIsAuthModalOpen(true);
-              else setActivePage("dashboard");
+              setIsProfileModalOpen(true);
             }}
-            title={session ? "Online" : "Klik untuk Masuk"}
-            className={`w-2 h-2 rounded-full mr-1 ${session ? "bg-emerald-500 animate-pulse" : "bg-amber-400"}`}
+            title="Akun Finora Aktif"
+            className="w-2 h-2 rounded-full mr-1 bg-emerald-500 animate-pulse"
           />
         </div>
       </div>

@@ -14,9 +14,10 @@ import { InsightPage } from "./components/insight/InsightPage";
 import { AddTransactionModal } from "./components/transactions/AddTransactionModal";
 import { ExportReportModal } from "./components/transactions/ExportReportModal";
 import { SearchModal } from "./components/common/SearchModal";
-import { AuthModal } from "./components/auth/AuthModal";
 import { ProfileModal } from "./components/common/ProfileModal";
 import { SplashScreen } from "./components/common/SplashScreen";
+import { AuthScreen } from "./components/auth/AuthScreen";
+import { Sparkles, Loader2 } from "lucide-react";
 
 const MainLayout = () => {
   const { activePage } = useFinance();
@@ -66,10 +67,40 @@ const MainLayout = () => {
       <AddTransactionModal />
       <ExportReportModal />
       <SearchModal />
-      <AuthModal />
       <ProfileModal />
     </div>
   );
+};
+
+const AppContent = () => {
+  const { session, authLoading } = useFinance();
+
+  // Loading screen while checking Supabase auth session
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-full bg-[#050B14] flex flex-col items-center justify-center text-white">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-emerald-400 p-0.5 shadow-2xl mb-4 animate-pulse">
+          <div className="w-full h-full bg-[#071322] rounded-[14px] flex items-center justify-center">
+            <span className="text-2xl font-black bg-gradient-to-r from-teal-400 to-emerald-300 bg-clip-text text-transparent">
+              F
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-teal-400 text-xs font-semibold">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Memverifikasi Sesi Finora...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Mandatory Authentication: Must create account or login first
+  if (!session) {
+    return <AuthScreen />;
+  }
+
+  // Authenticated: Render main application layout
+  return <MainLayout />;
 };
 
 export default function App() {
@@ -80,7 +111,7 @@ export default function App() {
       {showSplash && (
         <SplashScreen onFinish={() => setShowSplash(false)} duration={1800} />
       )}
-      <MainLayout />
+      <AppContent />
     </FinanceProvider>
   );
 }
