@@ -103,8 +103,8 @@ export const Sidebar = () => {
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative">
               <img
-                src={user?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100"}
-                alt={user?.name || "User"}
+                src={session && user?.avatar ? user.avatar : "https://api.dicebear.com/7.x/avataaars/svg?seed=GuestFinora"}
+                alt={session ? (user?.name || "User") : "User"}
                 className="w-9 h-9 rounded-xl object-cover border border-teal-500/30"
               />
               <span
@@ -115,10 +115,10 @@ export const Sidebar = () => {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-slate-800 dark:text-white truncate">
-                {user?.name || "User"}
+                {session ? (user?.name || "User") : "User"}
               </p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                {user?.role || (session ? "Pengguna" : "Tamu")}
+                {session ? (user?.role || "Pengguna") : "Tamu"}
               </p>
             </div>
           </div>

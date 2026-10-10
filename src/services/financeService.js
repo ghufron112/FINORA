@@ -175,6 +175,46 @@ class FinanceService {
     } catch {}
   }
 
+  async migrateGuestDataToUser(userId) {
+    if (!userId) return;
+    try {
+      // 1. Transactions
+      const guestTxs = this.getLocalTransactions(null);
+      if (guestTxs && guestTxs.length > 0) {
+        const userTxs = this.getLocalTransactions(userId);
+        const existingKeys = new Set(userTxs.map((x) => `${x.title}_${x.amount}_${x.date}`));
+        const toMigrate = guestTxs.filter((g) => !existingKeys.has(`${g.title}_${g.amount}_${g.date}`));
+
+        if (toMigrate.length > 0) {
+          const merged = [...toMigrate, ...userTxs];
+          this.saveLocalTransactions(userId, merged);
+          this.syncUnsyncedTransactions(userId, toMigrate);
+        }
+        localStorage.removeItem("finora_guest_tx");
+      }
+
+      // 2. Budgets
+      const guestBudgets = this.getLocalBudgets(null);
+      if (guestBudgets && guestBudgets.length > 0) {
+        const userBudgets = this.getLocalBudgets(userId);
+        const mergedBudgets = [...guestBudgets, ...userBudgets];
+        this.saveLocalBudgets(userId, mergedBudgets);
+        localStorage.removeItem("finora_guest_budgets");
+      }
+
+      // 3. Goals
+      const guestGoals = this.getLocalGoals(null);
+      if (guestGoals && guestGoals.length > 0) {
+        const userGoals = this.getLocalGoals(userId);
+        const mergedGoals = [...guestGoals, ...userGoals];
+        this.saveLocalGoals(userId, mergedGoals);
+        localStorage.removeItem("finora_guest_goals");
+      }
+    } catch (e) {
+      console.warn("Migration notice:", e);
+    }
+  }
+
   // ==========================================
   // FAST AUTH HELPER
   // ==========================================
@@ -197,20 +237,26 @@ class FinanceService {
 
   // ==========================================
   // PROFILES / USER
-  // ==========================================
-  async getUser() {
-    const userId = await this.getAuthUserId();
-    if (userId) {
-      try {
-        let authUser = null;
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData?.session?.user) {
-          authUser = sessionData.session.user;
-        } else {
-          const { data: authData } = await supabase.auth.getUser();
-          authUser = authData?.user;
-        }
+  async getUser(explicitAuthUser = null) {
+    let authUser = explicitAuthUser;
+    if (!authUser) {
+      const userId = await this.getAuthUserId();
+      if (userId) {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session?.user) {
+            authUser = sessionData.session.user;
+          } else {
+            const { data: authData } = await supabase.auth.getUser();
+            authUser = authData?.user;
+          }
+        } catch {}
+      }
+    }
 
+    if (authUser && authUser.id) {
+      try {
+        const userId = authUser.id;
         const { data: profile } = await supabase
           .from("profiles")
           .select("*")
@@ -245,7 +291,15 @@ class FinanceService {
     }
 
     const guestFallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=User&backgroundColor=0f766e,0d9488&textColor=ffffff`;
-    return { ...INITIAL_USER, avatar: INITIAL_USER.avatar || guestFallbackAvatar };
+    return {
+      name: "User",
+      role: "Tamu",
+      email: "Belum masuk akun",
+      avatar: guestFallbackAvatar,
+      hasCustomAvatar: false,
+      plan: "Mode Tamu",
+      currency: "IDR",
+    };
   }
 
   // Update Profile (Name & Avatar from gallery)
@@ -871,10 +925,13 @@ class FinanceService {
   // FAST UNIFIED DATA LOADER
   // Runs single parallel batch and computes all metrics in-memory
   // ==========================================
-  async loadAllUserData() {
+  async loadAllUserData(activeAuthUser = null) {
+    const isGuest = activeAuthUser === null && !this.cachedUserId;
+    const userId = activeAuthUser ? activeAuthUser.id : (isGuest ? null : await this.getAuthUserId());
+
     // 1. Fetch data concurrently
     const [userData, txList, goalList] = await Promise.all([
-      this.getUser(),
+      this.getUser(activeAuthUser),
       this.getTransactions(),
       this.getGoals(),
     ]);

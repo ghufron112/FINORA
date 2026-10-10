@@ -62,10 +62,21 @@ export const FinanceProvider = ({ children }) => {
   ]);
 
   // Load finance data from service using high-speed unified loader
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (forcedSession = undefined) => {
     try {
       setLoading(true);
-      const data = await financeService.loadAllUserData();
+      let currentSession = forcedSession;
+      if (currentSession === undefined && isSupabaseConfigured()) {
+        const { data } = await supabase.auth.getSession();
+        currentSession = data?.session || null;
+      }
+
+      const activeUser = currentSession?.user || null;
+      financeService.setCachedUserId(activeUser?.id || null);
+
+      const data = await financeService.loadAllUserData(activeUser);
+
+      setSession(currentSession);
       setUser(data.userData);
       setStats(data.statsData);
       setTransactions(data.txList);
@@ -86,14 +97,11 @@ export const FinanceProvider = ({ children }) => {
   useEffect(() => {
     if (isSupabaseConfigured()) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
-        setSession(currentSession);
         setAuthLoading(false);
-
-        const currentUserId = currentSession?.user?.id || null;
-        financeService.setCachedUserId(currentUserId);
 
         if (event === "SIGNED_OUT") {
           financeService.handleSignOut();
+          setSession(null);
           setUser({
             name: "User",
             role: "Tamu",
@@ -103,15 +111,16 @@ export const FinanceProvider = ({ children }) => {
             plan: "Mode Tamu",
             currency: "IDR",
           });
+          loadData(null);
+        } else {
+          loadData(currentSession);
         }
-
-        loadData();
       });
 
       return () => subscription.unsubscribe();
     } else {
       setAuthLoading(false);
-      loadData();
+      loadData(null);
     }
   }, [loadData]);
 
@@ -134,49 +143,59 @@ export const FinanceProvider = ({ children }) => {
     if (!isSupabaseConfigured()) {
       throw new Error("Koneksi Supabase belum dikonfigurasi.");
     }
+
+    const cleanEmail = (email || "").trim().toLowerCase();
+    const cleanName = (fullName || "").trim() || "User";
+
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: cleanEmail,
       password,
       options: {
-        data: { full_name: fullName },
+        data: { full_name: cleanName },
       },
     });
     if (error) throw error;
 
-    // If session returned immediately
-    if (data?.session) {
-      setSession(data.session);
-      financeService.setCachedUserId(data.session.user.id);
-    } else {
+    let activeSession = data?.session || null;
+
+    // If session not returned immediately, attempt auto-sign-in
+    if (!activeSession) {
       try {
         const { data: signInData } = await supabase.auth.signInWithPassword({
-          email,
+          email: cleanEmail,
           password,
         });
         if (signInData?.session) {
-          setSession(signInData.session);
-          financeService.setCachedUserId(signInData.session.user.id);
-          data.session = signInData.session;
+          activeSession = signInData.session;
         }
       } catch {}
     }
 
-    if (data?.user) {
-      financeService.updateProfile({
-        fullName: fullName || "User",
-      }).catch(() => {});
+    if (activeSession) {
+      setSession(activeSession);
+      financeService.setCachedUserId(activeSession.user.id);
+      await financeService.migrateGuestDataToUser(activeSession.user.id);
+      financeService.updateProfile({ fullName: cleanName }).catch(() => {});
+      await loadData(activeSession);
+      return { success: true, session: activeSession, user: activeSession.user };
     }
 
-    loadData();
-    return data;
+    return {
+      success: true,
+      session: null,
+      user: data?.user,
+      requireEmailConfirmation: true,
+    };
   };
 
   const signIn = async (email, password) => {
     if (!isSupabaseConfigured()) {
       throw new Error("Koneksi Supabase belum dikonfigurasi.");
     }
+
+    const cleanEmail = (email || "").trim().toLowerCase();
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: cleanEmail,
       password,
     });
     if (error) throw error;
@@ -184,9 +203,9 @@ export const FinanceProvider = ({ children }) => {
     if (data?.session) {
       setSession(data.session);
       financeService.setCachedUserId(data.session.user.id);
+      await financeService.migrateGuestDataToUser(data.session.user.id);
     }
 
-    // Sync profile in background without blocking login
     if (data?.user) {
       const nameToSave =
         data.user.user_metadata?.full_name ||
@@ -194,7 +213,7 @@ export const FinanceProvider = ({ children }) => {
       financeService.updateProfile({ fullName: nameToSave }).catch(() => {});
     }
 
-    loadData();
+    await loadData(data?.session);
     return data;
   };
 
@@ -202,6 +221,7 @@ export const FinanceProvider = ({ children }) => {
     try {
       setIsProfileModalOpen(false);
       financeService.handleSignOut();
+      setSession(null);
       setUser({
         name: "User",
         role: "Tamu",
@@ -211,10 +231,10 @@ export const FinanceProvider = ({ children }) => {
         plan: "Mode Tamu",
         currency: "IDR",
       });
-      setSession(null);
       if (isSupabaseConfigured()) {
         await supabase.auth.signOut();
       }
+      await loadData(null);
     } catch (err) {
       console.warn("Sign out notice:", err);
     }
