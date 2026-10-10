@@ -156,6 +156,24 @@ export const FinanceProvider = ({ children }) => {
       },
     });
     if (error) throw error;
+
+    // If session returned immediately
+    if (data?.session) {
+      setSession(data.session);
+    } else {
+      // Attempt immediate sign in in case email confirmation is not required
+      try {
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInData?.session) {
+          setSession(signInData.session);
+          data.session = signInData.session;
+        }
+      } catch {}
+    }
+
     if (data?.user) {
       try {
         await supabase.from("profiles").upsert({
@@ -167,6 +185,7 @@ export const FinanceProvider = ({ children }) => {
         console.warn("Could not upsert profile:", err);
       }
     }
+
     await loadData();
     return data;
   };
@@ -180,6 +199,27 @@ export const FinanceProvider = ({ children }) => {
       password,
     });
     if (error) throw error;
+
+    if (data?.session) {
+      setSession(data.session);
+    }
+
+    // Ensure profile row exists
+    if (data?.user) {
+      try {
+        const nameToSave =
+          data.user.user_metadata?.full_name ||
+          (data.user.email ? data.user.email.split("@")[0] : "User");
+        await supabase.from("profiles").upsert({
+          id: data.user.id,
+          full_name: nameToSave,
+          currency: "IDR",
+        });
+      } catch (err) {
+        console.warn("Could not ensure profile:", err);
+      }
+    }
+
     await loadData();
     return data;
   };

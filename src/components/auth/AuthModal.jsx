@@ -23,18 +23,34 @@ export const AuthModal = () => {
     try {
       if (tab === "login") {
         await signIn(email, password);
-        setSuccessMsg("Berhasil masuk! Mengalihkan...");
-        setTimeout(() => setIsAuthModalOpen(false), 1200);
+        setSuccessMsg("Berhasil masuk! Mengalihkan ke dashboard...");
+        setTimeout(() => setIsAuthModalOpen(false), 1000);
       } else if (tab === "register") {
-        await signUp(email, password, fullName);
-        setSuccessMsg("Registrasi berhasil! Profil Anda telah terhubung ke database.");
-        setTimeout(() => setIsAuthModalOpen(false), 1500);
+        const result = await signUp(email, password, fullName);
+        if (result?.session) {
+          setSuccessMsg(`Selamat datang, ${fullName || "Pengguna"}! Berhasil masuk.`);
+          setTimeout(() => setIsAuthModalOpen(false), 1200);
+        } else {
+          setSuccessMsg(
+            "Akun berhasil dibuat! Silakan cek inbox/spam email Anda untuk verifikasi, atau buka tab 'Masuk' untuk login."
+          );
+        }
       } else if (tab === "forgot") {
         await resetPassword(email);
         setSuccessMsg("Tautan reset kata sandi telah dikirim ke email Anda.");
       }
     } catch (err) {
-      setErrorMsg(err.message || "Terjadi kesalahan, periksa koneksi atau kredensial Anda.");
+      let msg = err.message || "Terjadi kesalahan, periksa koneksi atau kredensial Anda.";
+      if (msg.includes("Email not confirmed")) {
+        msg = "Email belum dikonfirmasi! Buka email Anda dan klik tautan konfirmasi, atau matikan opsi 'Confirm email' di dashboard Supabase.";
+      } else if (msg.includes("Invalid login credentials")) {
+        msg = "Email atau kata sandi tidak cocok. Silakan periksa kembali.";
+      } else if (msg.includes("rate limit")) {
+        msg = "Batas pengiriman email Supabase tercapai. Silakan matikan 'Confirm email' di dashboard Supabase Auth.";
+      } else if (msg.includes("User already registered")) {
+        msg = "Email ini sudah terdaftar! Silakan klik tab 'Masuk' di atas.";
+      }
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
