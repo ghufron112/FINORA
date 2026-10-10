@@ -222,19 +222,19 @@ export const Topbar = () => {
                   setIsProfileModalOpen(true);
                   setIsProfileOpen(false);
                 }}
-                className="px-3 py-2.5 border-b border-slate-200/80 dark:border-white/[0.06] mb-1 rounded-xl hover:bg-slate-50 dark:hover:bg-white/[0.03] cursor-pointer transition-colors group"
-                title="Klik untuk ubah foto profil dari galeri atau ganti nama"
+                className="px-3 py-2.5 border-b border-slate-200/80 dark:border-white/[0.06] mb-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-white/[0.03] cursor-pointer transition-colors group"
+                title="Buka Menu Akun"
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                  <p className="text-xs font-semibold text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors truncate">
                     {user?.name || "User"}
                   </p>
-                  <span className="text-[10px] text-teal-600 dark:text-teal-400 flex items-center gap-1 font-medium">
-                    <Camera className="w-3 h-3" />
-                    <span>Ubah Foto</span>
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400 flex items-center gap-1 font-medium shrink-0">
+                    <User className="w-3 h-3" />
+                    <span>Kelola</span>
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">{user?.email || "Belum Masuk Akun"}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user?.email || "Belum Masuk Akun"}</p>
                 <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-[10px] font-medium text-teal-700 dark:text-teal-300">
                   <span className={`w-1.5 h-1.5 rounded-full ${session ? "bg-emerald-500" : "bg-amber-400"}`} />
                   {session ? "Akun Finora Aktif" : "Mode Tamu"}
@@ -250,21 +250,25 @@ export const Topbar = () => {
                   className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Camera className="w-4 h-4 text-teal-500" />
-                    <span>Ubah Foto & Profil</span>
+                    <User className="w-4 h-4 text-teal-500" />
+                    <span className="font-semibold text-slate-800 dark:text-white">Menu Akun & Profil</span>
                   </div>
-                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">Galeri</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold">Buka</span>
                 </button>
-                <button
-                  onClick={() => {
-                    setIsAuthModalOpen(true);
-                    setIsProfileOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
-                >
-                  <User className="w-4 h-4 text-teal-500" />
-                  <span>{session ? "Akun Finora Aktif" : "Masuk / Daftar Akun"}</span>
-                </button>
+
+                {!session && (
+                  <button
+                    onClick={() => {
+                      setIsAuthModalOpen(true);
+                      setIsProfileOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
+                  >
+                    <User className="w-4 h-4 text-teal-500" />
+                    <span>Masuk / Daftar Akun</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => {
                     setActivePage("analitik");
@@ -277,58 +281,18 @@ export const Topbar = () => {
                 </button>
               </div>
 
-              <div className="pt-1.5 mt-1 border-t border-slate-200/80 dark:border-white/[0.06] space-y-1">
+              <div className="pt-1.5 mt-1 border-t border-slate-200/80 dark:border-white/[0.06]">
                 {session ? (
-                  <>
-                    <button
-                      onClick={async () => {
-                        await signOut();
-                        setIsProfileOpen(false);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors text-xs font-medium"
-                      title="Keluar dari akun Anda. Seluruh data Anda tetap tersimpan aman di database Supabase."
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <LogOut className="w-4 h-4 text-slate-400" />
-                        <span>Keluar Akun (Sign Out)</span>
-                      </div>
-                      <span className="text-[10px] text-teal-600 dark:text-teal-400 font-normal">Data Tersimpan</span>
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        if (
-                          window.confirm(
-                            "PERINGATAN: Apakah Anda yakin ingin mereset seluruh data transaksi, anggaran, dan target tabungan Anda di database Supabase? Saldo Anda akan kembali ke 0. Tindakan ini tidak dapat dibatalkan."
-                          )
-                        ) {
-                          await resetUserData();
-                          setIsProfileOpen(false);
-                        }
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors text-xs font-medium"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      <span>Reset Data Keuangan Saya</span>
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        if (
-                          window.confirm(
-                            "PERINGATAN HAPUS AKUN: Apakah Anda benar-benar yakin ingin menghapus akun dan seluruh data profil Anda secara permanen dari Supabase?"
-                          )
-                        ) {
-                          await deleteAccount();
-                          setIsProfileOpen(false);
-                        }
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors text-xs font-medium"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Hapus Akun Permanen</span>
-                    </button>
-                  </>
+                  <button
+                    onClick={async () => {
+                      await signOut();
+                      setIsProfileOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors text-xs font-medium"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Keluar Akun (Logout)</span>
+                  </button>
                 ) : (
                   <button
                     onClick={() => {
