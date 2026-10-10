@@ -258,10 +258,11 @@ export const FinanceProvider = ({ children }) => {
           event: "*",
           schema: "public",
           table: "transactions",
-          filter: `user_id=eq.${activeUserId}`,
         },
-        () => {
-          loadData(session);
+        (payload) => {
+          if (!payload.new?.user_id || payload.new.user_id === activeUserId || payload.old?.user_id === activeUserId) {
+            loadData(session);
+          }
         }
       )
       .on(
@@ -270,10 +271,11 @@ export const FinanceProvider = ({ children }) => {
           event: "*",
           schema: "public",
           table: "budgets",
-          filter: `user_id=eq.${activeUserId}`,
         },
-        () => {
-          loadData(session);
+        (payload) => {
+          if (!payload.new?.user_id || payload.new.user_id === activeUserId || payload.old?.user_id === activeUserId) {
+            loadData(session);
+          }
         }
       )
       .on(
@@ -282,10 +284,11 @@ export const FinanceProvider = ({ children }) => {
           event: "*",
           schema: "public",
           table: "savings_goals",
-          filter: `user_id=eq.${activeUserId}`,
         },
-        () => {
-          loadData(session);
+        (payload) => {
+          if (!payload.new?.user_id || payload.new.user_id === activeUserId || payload.old?.user_id === activeUserId) {
+            loadData(session);
+          }
         }
       )
       .subscribe();
@@ -503,8 +506,9 @@ export const FinanceProvider = ({ children }) => {
     ]);
 
     // 3. Background Cloud Sync (reconcile real Supabase ID)
+    const activeUserId = session?.user?.id;
     financeService
-      .addTransaction(txData)
+      .addTransaction(txData, activeUserId)
       .then((confirmed) => {
         setTransactions((prev) => {
           const reconciled = prev.map((t) => (t.id === tempId ? confirmed : t));

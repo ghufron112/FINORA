@@ -307,6 +307,12 @@ class FinanceService {
 
     if (userId) {
       try {
+        // Auto-sync any local transactions that are still unsynced (e.g. created offline or before sync)
+        const unsynced = localList.filter((t) => t.synced === false || String(t.id).startsWith("tx-"));
+        if (unsynced.length > 0) {
+          await this.syncUnsyncedTransactions(userId, unsynced);
+        }
+
         const { data, error } = await supabase
           .from("transactions")
           .select("*, categories(name, color, icon)")
@@ -343,8 +349,8 @@ class FinanceService {
     return localList;
   }
 
-  async addTransaction(newTx) {
-    const userId = await this.getAuthUserId();
+  async addTransaction(newTx, explicitUserId = null) {
+    const userId = explicitUserId || (await this.getAuthUserId());
     if (!userId) {
       throw new Error("Sesi login Anda tidak aktif. Silakan masuk kembali.");
     }
