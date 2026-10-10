@@ -14,10 +14,16 @@ import {
   Receipt,
   Film,
   Briefcase,
+  Download,
 } from "lucide-react";
 
 export const TransactionsPage = () => {
-  const { transactions, deleteTransaction, setIsAddTxModalOpen } = useFinance();
+  const {
+    transactions,
+    deleteTransaction,
+    setIsAddTxModalOpen,
+    setIsReportModalOpen,
+  } = useFinance();
 
   const [typeFilter, setTypeFilter] = useState("all"); // "all" | "income" | "expense"
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,13 +90,23 @@ export const TransactionsPage = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAddTxModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-500/20 active:scale-95 transition-all self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Tambah Transaksi</span>
-        </button>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+          <button
+            onClick={() => setIsReportModalOpen(true)}
+            className="flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-2xl bg-white/95 dark:bg-[#0F1D30]/80 hover:bg-slate-100 dark:hover:bg-[#16273d] border border-slate-200/90 dark:border-white/10 text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm shadow-xs active:scale-95 transition-all group"
+          >
+            <Download className="w-4 h-4 text-teal-600 dark:text-teal-400 group-hover:scale-110 transition-transform" />
+            <span>Unduh Laporan</span>
+          </button>
+
+          <button
+            onClick={() => setIsAddTxModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-teal-500/20 active:scale-95 transition-all"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Tambah Transaksi</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}

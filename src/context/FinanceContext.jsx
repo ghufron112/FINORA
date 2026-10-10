@@ -29,6 +29,7 @@ export const FinanceProvider = ({ children }) => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false); // Login / Register Modal
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false); // Profile & Avatar Modal
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false); // Export / Download Report Modal
 
   // Theme state (default to light mode)
   const [theme, setTheme] = useState(() => {
@@ -369,6 +370,8 @@ export const FinanceProvider = ({ children }) => {
     setIsProfileModalOpen,
     isNotificationOpen,
     setIsNotificationOpen,
+    isReportModalOpen,
+    setIsReportModalOpen,
     addTransaction,
     deleteTransaction,
     addGoal,

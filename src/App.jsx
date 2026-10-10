@@ -12,6 +12,7 @@ import { GoalsPage } from "./components/goals/GoalsPage";
 import { CalendarPage } from "./components/calendar/CalendarPage";
 import { InsightPage } from "./components/insight/InsightPage";
 import { AddTransactionModal } from "./components/transactions/AddTransactionModal";
+import { ExportReportModal } from "./components/transactions/ExportReportModal";
 import { SearchModal } from "./components/common/SearchModal";
 import { AuthModal } from "./components/auth/AuthModal";
 import { ProfileModal } from "./components/common/ProfileModal";
@@ -63,6 +64,7 @@ const MainLayout = () => {
 
       {/* Global Interactive Modals */}
       <AddTransactionModal />
+      <ExportReportModal />
       <SearchModal />
       <AuthModal />
       <ProfileModal />

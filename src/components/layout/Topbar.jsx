@@ -17,6 +17,7 @@ import {
   Trash2,
   ShieldCheck,
   Camera,
+  FileText,
 } from "lucide-react";
 import { FinoraLogo } from "../common/FinoraLogo";
 
@@ -29,6 +30,7 @@ export const Topbar = () => {
     setIsSearchModalOpen,
     setIsAuthModalOpen,
     setIsProfileModalOpen,
+    setIsReportModalOpen,
     session,
     signOut,
     resetUserData,
@@ -268,6 +270,17 @@ export const Topbar = () => {
                     <span>Masuk / Daftar Akun</span>
                   </button>
                 )}
+
+                <button
+                  onClick={() => {
+                    setIsReportModalOpen(true);
+                    setIsProfileOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
+                >
+                  <FileText className="w-4 h-4 text-teal-500" />
+                  <span>Unduh Laporan Keuangan</span>
+                </button>
 
                 <button
                   onClick={() => {
