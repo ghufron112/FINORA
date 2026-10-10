@@ -62,9 +62,9 @@ export const FinanceProvider = ({ children }) => {
   ]);
 
   // Load finance data from service using high-speed unified loader
+  // Load finance data from service using high-speed unified loader (Instant Stale-While-Revalidate)
   const loadData = useCallback(async (forcedSession = undefined) => {
     try {
-      setLoading(true);
       let currentSession = forcedSession;
       if (currentSession === undefined && isSupabaseConfigured()) {
         const { data } = await supabase.auth.getSession();
@@ -74,6 +74,44 @@ export const FinanceProvider = ({ children }) => {
       const activeUser = currentSession?.user || null;
       financeService.setCachedUserId(activeUser?.id || null);
 
+      // Instant Local Cache Preview (0ms delay)
+      let hasCachedData = false;
+      if (activeUser?.id) {
+        const cachedTxs = financeService.getLocalTransactions(activeUser.id);
+        const cachedBudgets = financeService.getLocalBudgets(activeUser.id);
+        const cachedGoals = financeService.getLocalGoals(activeUser.id);
+
+        if (cachedTxs.length > 0 || cachedBudgets.length > 0 || cachedGoals.length > 0) {
+          hasCachedData = true;
+          setSession(currentSession);
+          setUser({
+            name:
+              activeUser.user_metadata?.full_name ||
+              (activeUser.email ? activeUser.email.split("@")[0] : "Pengguna"),
+            email: activeUser.email,
+            avatar:
+              activeUser.user_metadata?.avatar_url ||
+              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                activeUser.email
+              )}&backgroundColor=0f766e,0d9488&textColor=ffffff`,
+            role: "Pengguna Finora",
+          });
+          setTransactions(cachedTxs);
+          setBudgets(cachedBudgets);
+          setGoals(cachedGoals);
+          setStats(financeService.computeStats(cachedTxs));
+          setCashFlow(financeService.computeCashFlow(cachedTxs));
+          setCategoryExpenses(financeService.computeCategoryExpenses(cachedTxs));
+          setFinancialHealth(financeService.computeFinancialHealth(cachedTxs));
+          setLoading(false); // Instantly dismiss loading spinner
+        }
+      }
+
+      if (!hasCachedData) {
+        setLoading(true);
+      }
+
+      // Background Cloud Revalidation from Supabase
       const data = await financeService.loadAllUserData(activeUser);
 
       setSession(currentSession);
@@ -137,7 +175,7 @@ export const FinanceProvider = ({ children }) => {
     }
 
     const cleanEmail = (email || "").trim().toLowerCase();
-    const cleanName = (fullName || "").trim() || "User";
+    const cleanName = (fullName || "").trim() || "Pengguna";
 
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
@@ -150,7 +188,6 @@ export const FinanceProvider = ({ children }) => {
 
     let activeSession = data?.session || null;
 
-    // If session not returned immediately, attempt auto-sign-in
     if (!activeSession) {
       try {
         const { data: signInData } = await supabase.auth.signInWithPassword({
@@ -166,9 +203,8 @@ export const FinanceProvider = ({ children }) => {
     if (activeSession) {
       setSession(activeSession);
       financeService.setCachedUserId(activeSession.user.id);
-      await financeService.migrateGuestDataToUser(activeSession.user.id);
       financeService.updateProfile({ fullName: cleanName }).catch(() => {});
-      await loadData(activeSession);
+      loadData(activeSession); // Non-blocking load for ultra-fast transition
       return { success: true, session: activeSession, user: activeSession.user };
     }
 
@@ -195,17 +231,17 @@ export const FinanceProvider = ({ children }) => {
     if (data?.session) {
       setSession(data.session);
       financeService.setCachedUserId(data.session.user.id);
-      await financeService.migrateGuestDataToUser(data.session.user.id);
     }
 
     if (data?.user) {
       const nameToSave =
         data.user.user_metadata?.full_name ||
-        (data.user.email ? data.user.email.split("@")[0] : "User");
+        (data.user.email ? data.user.email.split("@")[0] : "Pengguna");
       financeService.updateProfile({ fullName: nameToSave }).catch(() => {});
     }
 
-    await loadData(data?.session);
+    // Instant non-blocking trigger so login responds in milliseconds
+    loadData(data?.session);
     return data;
   };
 
@@ -218,7 +254,7 @@ export const FinanceProvider = ({ children }) => {
       if (isSupabaseConfigured()) {
         await supabase.auth.signOut();
       }
-      await loadData(null);
+      loadData(null);
     } catch (err) {
       console.warn("Sign out notice:", err);
     }
@@ -234,12 +270,33 @@ export const FinanceProvider = ({ children }) => {
   };
 
   // ==========================================
-  // TRANSACTION CRUD
+  // TRANSACTION CRUD (Ultra-fast Optimistic Updates)
   // ==========================================
   const addTransaction = async (txData) => {
-    const created = await financeService.addTransaction(txData);
-    await loadData();
+    const tempId = `tx-${Date.now()}`;
+    const optimisticItem = {
+      id: tempId,
+      title: txData.title,
+      amount: Number(txData.amount),
+      type: txData.type || "expense",
+      category: txData.category || "Lainnya",
+      date: txData.date || new Date().toISOString().split("T")[0],
+      paymentMethod: txData.paymentMethod || "Transfer",
+      note: txData.note || "",
+      synced: false,
+    };
 
+    // 1. Instant 0ms UI update
+    setTransactions((prev) => {
+      const updated = [optimisticItem, ...prev];
+      setStats(financeService.computeStats(updated));
+      setCashFlow(financeService.computeCashFlow(updated));
+      setCategoryExpenses(financeService.computeCategoryExpenses(updated));
+      setFinancialHealth(financeService.computeFinancialHealth(updated));
+      return updated;
+    });
+
+    // 2. Instant notification
     const isIncome = txData.type === "income";
     setNotifications((prev) => [
       {
@@ -253,23 +310,81 @@ export const FinanceProvider = ({ children }) => {
       ...prev,
     ]);
 
-    return created;
+    // 3. Background Cloud Sync (reconcile real Supabase ID)
+    financeService
+      .addTransaction(txData)
+      .then((confirmed) => {
+        setTransactions((prev) =>
+          prev.map((t) => (t.id === tempId ? confirmed : t))
+        );
+      })
+      .catch((err) => {
+        console.error("Background sync transaction error:", err);
+      });
+
+    return optimisticItem;
   };
 
   const deleteTransaction = async (id) => {
-    await financeService.deleteTransaction(id);
-    await loadData();
+    // Instant 0ms Optimistic Delete
+    setTransactions((prev) => {
+      const updated = prev.filter((t) => t.id !== id);
+      setStats(financeService.computeStats(updated));
+      setCashFlow(financeService.computeCashFlow(updated));
+      setCategoryExpenses(financeService.computeCategoryExpenses(updated));
+      setFinancialHealth(financeService.computeFinancialHealth(updated));
+      return updated;
+    });
+
+    // Background Cloud Delete
+    financeService.deleteTransaction(id).catch(console.error);
   };
 
   const addGoal = async (goalData) => {
-    const created = await financeService.addGoal(goalData);
-    setGoals((prev) => [...prev, created]);
-    return created;
+    const tempId = `g-${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      name: goalData.name,
+      title: goalData.name,
+      current: Number(goalData.current || 0),
+      target: Number(goalData.target),
+      percentage: Math.min(100, Math.round(((goalData.current || 0) / goalData.target) * 100)),
+      date: goalData.date || "2026-12-31",
+      color: goalData.color || "teal",
+      synced: false,
+    };
+
+    // Instant 0ms UI Update
+    setGoals((prev) => [...prev, optimistic]);
+
+    // Background Cloud Sync
+    financeService
+      .addGoal(goalData)
+      .then((confirmed) => {
+        setGoals((prev) => prev.map((g) => (g.id === tempId ? confirmed : g)));
+      })
+      .catch(console.error);
+
+    return optimistic;
   };
 
   const depositToGoal = async (goalId, amount) => {
-    const updated = await financeService.updateGoalDeposit(goalId, amount);
-    setGoals(updated);
+    // Instant 0ms Goal Deposit UI Update
+    setGoals((prev) =>
+      prev.map((g) => {
+        if (g.id === goalId) {
+          const newCurrent = Number(g.current || 0) + Number(amount);
+          const target = Number(g.target || 1);
+          return {
+            ...g,
+            current: newCurrent,
+            percentage: Math.min(100, Math.round((newCurrent / target) * 100)),
+          };
+        }
+        return g;
+      })
+    );
+
     try {
       confetti({
         particleCount: 50,
@@ -278,12 +393,34 @@ export const FinanceProvider = ({ children }) => {
         colors: ["#5EEAD4", "#60A5FA", "#34D399"],
       });
     } catch {}
+
+    financeService.updateGoalDeposit(goalId, amount).catch(console.error);
   };
 
   const addBudget = async (budgetData) => {
-    const created = await financeService.addBudget(budgetData);
-    setBudgets((prev) => [...prev, created]);
-    return created;
+    const tempId = `b-${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      category: budgetData.category,
+      spent: Number(budgetData.spent || 0),
+      limit: Number(budgetData.limit),
+      percentage: Math.round(((budgetData.spent || 0) / budgetData.limit) * 100),
+      isExceeded: (budgetData.spent || 0) > budgetData.limit,
+      synced: false,
+    };
+
+    // Instant 0ms UI Update
+    setBudgets((prev) => [...prev, optimistic]);
+
+    // Background Cloud Sync
+    financeService
+      .addBudget(budgetData)
+      .then((confirmed) => {
+        setBudgets((prev) => prev.map((b) => (b.id === tempId ? confirmed : b)));
+      })
+      .catch(console.error);
+
+    return optimistic;
   };
 
   const resetUserData = async () => {

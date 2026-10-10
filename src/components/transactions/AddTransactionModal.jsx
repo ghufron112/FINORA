@@ -35,32 +35,30 @@ export const AddTransactionModal = () => {
 
   const currentCategories = type === "expense" ? expenseCategories : incomeCategories;
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!title || !amount) return;
 
-    try {
-      setIsSubmitting(true);
-      await addTransaction({
-        type,
-        title,
-        amount: Number(amount),
-        category,
-        date,
-        paymentMethod,
-        note,
-      });
+    const payload = {
+      type,
+      title: title.trim(),
+      amount: Number(amount),
+      category,
+      date,
+      paymentMethod,
+      note: note.trim(),
+    };
 
-      // Reset & close
-      setTitle("");
-      setAmount("");
-      setNote("");
-      setIsAddTxModalOpen(false);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Reset and close modal instantly (0ms delay)
+    setTitle("");
+    setAmount("");
+    setNote("");
+    setIsAddTxModalOpen(false);
+
+    // Trigger instant optimistic update
+    addTransaction(payload).catch((err) => {
+      console.error("Gagal menambah transaksi:", err);
+    });
   };
 
   return (

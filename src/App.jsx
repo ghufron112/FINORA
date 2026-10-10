@@ -104,12 +104,19 @@ const AppContent = () => {
 };
 
 export default function App() {
-  const [showSplash, setShowSplash] = React.useState(true);
+  const [showSplash, setShowSplash] = React.useState(() => {
+    return !sessionStorage.getItem("finora_splash_viewed");
+  });
+
+  const handleSplashFinish = () => {
+    sessionStorage.setItem("finora_splash_viewed", "true");
+    setShowSplash(false);
+  };
 
   return (
     <FinanceProvider>
       {showSplash && (
-        <SplashScreen onFinish={() => setShowSplash(false)} duration={1800} />
+        <SplashScreen onFinish={handleSplashFinish} duration={500} />
       )}
       <AppContent />
     </FinanceProvider>
