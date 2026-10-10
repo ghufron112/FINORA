@@ -23,8 +23,8 @@ export const AuthModal = () => {
     try {
       if (tab === "login") {
         await signIn(email, password);
-        setSuccessMsg("Berhasil masuk! Mengalihkan ke dashboard...");
-        setTimeout(() => setIsAuthModalOpen(false), 1000);
+        setSuccessMsg("Berhasil masuk!");
+        setTimeout(() => setIsAuthModalOpen(false), 200);
       } else if (tab === "register") {
         const result = await signUp(email, password, fullName);
         if (result?.session) {

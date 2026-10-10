@@ -1,5 +1,5 @@
 // Finora Supabase Service Layer
-// Integrates Supabase PostgreSQL & Auth with Bulletproof Local-First Dual Persistence & Background Cloud Sync
+// Integrates Supabase PostgreSQL & Auth with High-Speed In-Memory Calculations, Dual-Persistence & Background Cloud Sync
 
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import {
@@ -22,6 +22,16 @@ const STORAGE_KEY_BUDGETS = "finora_budgets_v1";
 class FinanceService {
   constructor() {
     this.isConfigured = isSupabaseConfigured();
+    this.cachedUserId = null;
+
+    if (this.isConfigured) {
+      supabase.auth.getSession().then(({ data }) => {
+        this.cachedUserId = data?.session?.user?.id || null;
+      });
+      supabase.auth.onAuthStateChange((_e, session) => {
+        this.cachedUserId = session?.user?.id || null;
+      });
+    }
   }
 
   // ==========================================
@@ -158,17 +168,20 @@ class FinanceService {
   }
 
   // ==========================================
-  // AUTH HELPER
+  // FAST AUTH HELPER
   // ==========================================
   async getAuthUserId() {
     if (!this.isConfigured) return null;
+    if (this.cachedUserId) return this.cachedUserId;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData?.session?.user?.id) {
-        return sessionData.session.user.id;
+        this.cachedUserId = sessionData.session.user.id;
+        return this.cachedUserId;
       }
       const { data: authData } = await supabase.auth.getUser();
-      return authData?.user?.id || null;
+      this.cachedUserId = authData?.user?.id || null;
+      return this.cachedUserId;
     } catch {
       return null;
     }
@@ -182,12 +195,12 @@ class FinanceService {
     if (userId) {
       try {
         let authUser = null;
-        const { data: authData } = await supabase.auth.getUser();
-        if (authData?.user) {
-          authUser = authData.user;
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session?.user) {
+          authUser = sessionData.session.user;
         } else {
-          const { data: sessionData } = await supabase.auth.getSession();
-          authUser = sessionData?.session?.user;
+          const { data: authData } = await supabase.auth.getUser();
+          authUser = authData?.user;
         }
 
         const { data: profile } = await supabase
@@ -231,7 +244,6 @@ class FinanceService {
   async updateProfile({ fullName, avatarUrl }) {
     const userId = await this.getAuthUserId();
     if (userId) {
-      // 1. Always save to Supabase Auth metadata first (guaranteed to succeed without table RLS restriction)
       try {
         const authUpdate = {};
         if (fullName !== undefined) authUpdate.full_name = fullName;
@@ -241,7 +253,6 @@ class FinanceService {
         console.warn("Supabase auth.updateUser notice:", authErr);
       }
 
-      // 2. Also sync to public.profiles table
       try {
         const updatePayload = {
           updated_at: new Date().toISOString(),
@@ -249,7 +260,6 @@ class FinanceService {
         if (fullName !== undefined) updatePayload.full_name = fullName;
         if (avatarUrl !== undefined) updatePayload.avatar_url = avatarUrl;
 
-        // Try update existing row first
         const { data: updatedProfile } = await supabase
           .from("profiles")
           .update(updatePayload)
@@ -257,7 +267,6 @@ class FinanceService {
           .select()
           .maybeSingle();
 
-        // If row doesn't exist yet, try insert
         if (!updatedProfile) {
           await supabase
             .from("profiles")
@@ -303,7 +312,6 @@ class FinanceService {
             synced: true,
           }));
 
-          // Merge with any unsynced local transactions
           const remoteIds = new Set(remoteList.map((r) => String(r.id)));
           const unsyncedLocals = localList.filter(
             (l) => !remoteIds.has(String(l.id)) && (!l.synced || String(l.id).startsWith("tx-"))
@@ -314,14 +322,12 @@ class FinanceService {
 
           this.saveLocalTransactions(userId, merged);
 
-          // Auto-sync in background if there were unsynced local rows
           if (unsyncedLocals.length > 0) {
             this.syncUnsyncedTransactions(userId, unsyncedLocals);
           }
 
           return merged;
         } else if (localList.length > 0) {
-          // If Supabase returned error or empty, preserve user's local cache
           return localList;
         }
       } catch (err) {
@@ -349,12 +355,10 @@ class FinanceService {
       synced: false,
     };
 
-    // 1. Immediately persist to local cache so user never loses it
     const currentLocals = this.getLocalTransactions(userId);
     const updatedLocals = [txItem, ...currentLocals.filter((x) => x.id !== tempId)];
     this.saveLocalTransactions(userId, updatedLocals);
 
-    // 2. Persist to Supabase if logged in
     if (userId) {
       try {
         let categoryId = newTx.categoryId || null;
@@ -465,12 +469,10 @@ class FinanceService {
   async deleteTransaction(txId) {
     const userId = await this.getAuthUserId();
 
-    // 1. Remove from local cache immediately
     const currentLocals = this.getLocalTransactions(userId);
     const updatedLocals = currentLocals.filter((t) => t.id !== txId);
     this.saveLocalTransactions(userId, updatedLocals);
 
-    // 2. Remove from Supabase
     if (userId && !String(txId).startsWith("tx-")) {
       try {
         await supabase
@@ -487,10 +489,9 @@ class FinanceService {
   }
 
   // ==========================================
-  // DYNAMIC STATS & REPORTS
+  // IN-MEMORY COMPUTE ENGINES (0ms Network Overhead)
   // ==========================================
-  async getStats() {
-    const txs = await this.getTransactions();
+  computeStats(txs = []) {
     const income = txs
       .filter((t) => t.type === "income")
       .reduce((sum, t) => sum + Number(t.amount || 0), 0);
@@ -512,8 +513,7 @@ class FinanceService {
     };
   }
 
-  async getCashFlow() {
-    const txs = await this.getTransactions();
+  computeCashFlow(txs = []) {
     const buckets = [
       { day: "5", pemasukan: 0, pengeluaran: 0 },
       { day: "10", pemasukan: 0, pengeluaran: 0 },
@@ -544,8 +544,7 @@ class FinanceService {
     return buckets;
   }
 
-  async getCategoryExpenses() {
-    const txs = await this.getTransactions();
+  computeCategoryExpenses(txs = []) {
     const expenses = txs.filter((t) => t.type === "expense");
     const totalExp = expenses.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
@@ -576,13 +575,50 @@ class FinanceService {
     }));
   }
 
+  computeFinancialHealth(txs = []) {
+    const income = txs.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
+    const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    const ratio = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+    const score = income === 0 ? 75 : Math.max(30, Math.min(95, 50 + ratio / 2));
+
+    return {
+      score: Math.round(score),
+      grade: score >= 80 ? "Sangat Baik" : score >= 60 ? "Baik" : "Perlu Perhatian",
+      savingsRate: `${Math.max(0, ratio)}%`,
+      debtToIncome: "5%",
+      emergencyFund: "4.2 Bulan",
+      monthlyBudgetAdherence: "88%",
+    };
+  }
+
+  async getStats() {
+    const txs = await this.getTransactions();
+    return this.computeStats(txs);
+  }
+
+  async getCashFlow() {
+    const txs = await this.getTransactions();
+    return this.computeCashFlow(txs);
+  }
+
+  async getCategoryExpenses() {
+    const txs = await this.getTransactions();
+    return this.computeCategoryExpenses(txs);
+  }
+
+  async getFinancialHealth() {
+    const txs = await this.getTransactions();
+    return this.computeFinancialHealth(txs);
+  }
+
   // ==========================================
   // BUDGETS (CRUD)
   // ==========================================
-  async getBudgets() {
+  async getBudgets(prefetchedTxs = null) {
     const userId = await this.getAuthUserId();
     const localBudgets = this.getLocalBudgets(userId);
-    const txs = await this.getTransactions();
+    const txs = prefetchedTxs || (await this.getTransactions());
 
     if (userId) {
       try {
@@ -789,7 +825,6 @@ class FinanceService {
   async updateGoalDeposit(goalId, amountToAdd) {
     const userId = await this.getAuthUserId();
 
-    // 1. Update local cache
     const currentLocals = this.getLocalGoals(userId);
     const updatedLocals = currentLocals.map((g) => {
       if (g.id === goalId) {
@@ -805,7 +840,6 @@ class FinanceService {
     });
     this.saveLocalGoals(userId, updatedLocals);
 
-    // 2. Update Supabase
     if (userId && !String(goalId).startsWith("g-")) {
       try {
         const targetGoal = currentLocals.find((g) => g.id === goalId);
@@ -826,23 +860,37 @@ class FinanceService {
   }
 
   // ==========================================
-  // METRICS & ADVANCED INSIGHTS
+  // FAST UNIFIED DATA LOADER
+  // Runs single parallel batch and computes all metrics in-memory
   // ==========================================
-  async getFinancialHealth() {
-    const txs = await this.getTransactions();
-    const income = txs.filter((t) => t.type === "income").reduce((s, t) => s + Number(t.amount || 0), 0);
-    const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0);
+  async loadAllUserData() {
+    // 1. Fetch data concurrently
+    const [userData, txList, goalList] = await Promise.all([
+      this.getUser(),
+      this.getTransactions(),
+      this.getGoals(),
+    ]);
 
-    const ratio = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
-    const score = income === 0 ? 75 : Math.max(30, Math.min(95, 50 + ratio / 2));
+    // 2. Fetch budgets with prefetched transactions (no duplicate transaction query!)
+    const budgetList = await this.getBudgets(txList);
+
+    // 3. Compute stats, cash flow, categories, health in-memory with 0ms delay!
+    const statsData = this.computeStats(txList);
+    const cashFlowData = this.computeCashFlow(txList);
+    const categoryExpenseData = this.computeCategoryExpenses(txList);
+    const healthData = this.computeFinancialHealth(txList);
+    const insightList = [...AI_INSIGHTS];
 
     return {
-      score: Math.round(score),
-      grade: score >= 80 ? "Sangat Baik" : score >= 60 ? "Baik" : "Perlu Perhatian",
-      savingsRate: `${Math.max(0, ratio)}%`,
-      debtToIncome: "5%",
-      emergencyFund: "4.2 Bulan",
-      monthlyBudgetAdherence: "88%",
+      userData,
+      statsData,
+      txList,
+      budgetList,
+      goalList,
+      insightList,
+      healthData,
+      cashFlowData,
+      categoryExpenseData,
     };
   }
 
@@ -858,7 +906,6 @@ class FinanceService {
     return this.resetUserData();
   }
 
-  // Resets financial transactions, budgets, and goals for the current user
   async resetUserData() {
     const userId = await this.getAuthUserId();
     if (userId) {
@@ -885,7 +932,6 @@ class FinanceService {
     return true;
   }
 
-  // Permanently deletes all financial data and profile from Supabase
   async deleteAccount() {
     const userId = await this.getAuthUserId();
     if (userId) {

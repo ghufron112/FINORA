@@ -61,41 +61,20 @@ export const FinanceProvider = ({ children }) => {
     },
   ]);
 
-  // Load finance data from service
+  // Load finance data from service using high-speed unified loader
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [
-        userData,
-        statsData,
-        txList,
-        budgetList,
-        goalList,
-        insightList,
-        healthData,
-        cashFlowData,
-        categoryExpenseData,
-      ] = await Promise.all([
-        financeService.getUser(),
-        financeService.getStats(),
-        financeService.getTransactions(),
-        financeService.getBudgets(),
-        financeService.getGoals(),
-        financeService.getAiInsights(),
-        financeService.getFinancialHealth(),
-        financeService.getCashFlow(),
-        financeService.getCategoryExpenses(),
-      ]);
-
-      setUser(userData);
-      setStats(statsData);
-      setTransactions(txList);
-      setBudgets(budgetList);
-      setGoals(goalList);
-      setInsights(insightList);
-      setFinancialHealth(healthData);
-      setCashFlow(cashFlowData);
-      setCategoryExpenses(categoryExpenseData);
+      const data = await financeService.loadAllUserData();
+      setUser(data.userData);
+      setStats(data.statsData);
+      setTransactions(data.txList);
+      setBudgets(data.budgetList);
+      setGoals(data.goalList);
+      setInsights(data.insightList);
+      setFinancialHealth(data.healthData);
+      setCashFlow(data.cashFlowData);
+      setCategoryExpenses(data.categoryExpenseData);
     } catch (err) {
       console.error("Failed to load Finora data:", err);
     } finally {
@@ -203,21 +182,15 @@ export const FinanceProvider = ({ children }) => {
       setSession(data.session);
     }
 
-    // Ensure profile row exists
+    // Sync profile in background without blocking login
     if (data?.user) {
-      try {
-        const nameToSave =
-          data.user.user_metadata?.full_name ||
-          (data.user.email ? data.user.email.split("@")[0] : "User");
-        await financeService.updateProfile({
-          fullName: nameToSave,
-        });
-      } catch (err) {
-        console.warn("Could not sync profile metadata:", err);
-      }
+      const nameToSave =
+        data.user.user_metadata?.full_name ||
+        (data.user.email ? data.user.email.split("@")[0] : "User");
+      financeService.updateProfile({ fullName: nameToSave }).catch(() => {});
     }
 
-    await loadData();
+    loadData();
     return data;
   };
 
