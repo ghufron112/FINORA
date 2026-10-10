@@ -308,6 +308,16 @@ export const FinanceProvider = ({ children }) => {
 
   const updateProfile = async ({ fullName, avatarUrl }) => {
     const updated = await financeService.updateProfile({ fullName, avatarUrl });
+    setUser((prev) => {
+      const resolvedName = fullName !== undefined ? fullName : (prev?.name || "User");
+      const fallback = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(resolvedName)}&backgroundColor=0f766e,0d9488&textColor=ffffff`;
+      return {
+        ...prev,
+        name: resolvedName,
+        avatar: avatarUrl || fallback,
+        hasCustomAvatar: Boolean(avatarUrl),
+      };
+    });
     await loadData();
     return updated;
   };

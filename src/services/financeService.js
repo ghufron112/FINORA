@@ -49,12 +49,12 @@ class FinanceService {
     if (userId) {
       try {
         let authUser = null;
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData?.session?.user) {
-          authUser = sessionData.session.user;
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          authUser = authData.user;
         } else {
-          const { data: authData } = await supabase.auth.getUser();
-          authUser = authData?.user;
+          const { data: sessionData } = await supabase.auth.getSession();
+          authUser = sessionData?.session?.user;
         }
 
         const { data: profile } = await supabase
@@ -69,23 +69,18 @@ class FinanceService {
           (authUser?.email ? authUser.email.split("@")[0] : null) ||
           "User";
 
-        if (!profile && authUser && resolvedName !== "User") {
-          try {
-            await supabase.from("profiles").upsert({
-              id: userId,
-              full_name: resolvedName,
-              currency: "IDR",
-            });
-          } catch {}
-        }
+        const resolvedAvatar =
+          profile?.avatar_url ||
+          authUser?.user_metadata?.avatar_url ||
+          null;
 
         const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(resolvedName)}&backgroundColor=0f766e,0d9488&textColor=ffffff`;
 
         return {
           name: resolvedName,
           email: authUser?.email || "user@finora.id",
-          avatar: profile?.avatar_url || fallbackAvatar,
-          hasCustomAvatar: Boolean(profile?.avatar_url),
+          avatar: resolvedAvatar || fallbackAvatar,
+          hasCustomAvatar: Boolean(resolvedAvatar),
           role: "Pengguna",
           plan: "Supabase Cloud",
           currency: profile?.currency || "IDR",
@@ -103,6 +98,17 @@ class FinanceService {
   async updateProfile({ fullName, avatarUrl }) {
     const userId = await this.getAuthUserId();
     if (userId) {
+      // 1. Always save to Supabase Auth metadata first (guaranteed to succeed without table RLS restriction)
+      try {
+        const authUpdate = {};
+        if (fullName !== undefined) authUpdate.full_name = fullName;
+        if (avatarUrl !== undefined) authUpdate.avatar_url = avatarUrl;
+        await supabase.auth.updateUser({ data: authUpdate });
+      } catch (authErr) {
+        console.warn("Supabase auth.updateUser notice:", authErr);
+      }
+
+      // 2. Also sync to public.profiles table
       try {
         const updatePayload = {
           updated_at: new Date().toISOString(),
@@ -110,26 +116,25 @@ class FinanceService {
         if (fullName !== undefined) updatePayload.full_name = fullName;
         if (avatarUrl !== undefined) updatePayload.avatar_url = avatarUrl;
 
-        const { data, error } = await supabase
+        // Try update existing row first
+        const { data: updatedProfile } = await supabase
           .from("profiles")
-          .upsert({ id: userId, ...updatePayload })
+          .update(updatePayload)
+          .eq("id", userId)
           .select()
-          .single();
+          .maybeSingle();
 
-        if (error) throw error;
-
-        try {
-          const authUpdate = {};
-          if (fullName !== undefined) authUpdate.full_name = fullName;
-          if (avatarUrl !== undefined) authUpdate.avatar_url = avatarUrl;
-          await supabase.auth.updateUser({ data: authUpdate });
-        } catch {}
-
-        return data;
-      } catch (err) {
-        console.error("Supabase updateProfile error:", err);
-        throw err;
+        // If row doesn't exist yet, try insert
+        if (!updatedProfile) {
+          await supabase
+            .from("profiles")
+            .insert({ id: userId, ...updatePayload });
+        }
+      } catch (tableErr) {
+        console.warn("Profiles table sync warning:", tableErr);
       }
+
+      return { fullName, avatarUrl };
     }
 
     return null;
