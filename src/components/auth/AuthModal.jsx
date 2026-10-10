@@ -106,53 +106,40 @@ export const AuthModal = () => {
         </div>
 
         {/* Mode Tabs */}
-        <div className="flex p-1 rounded-2xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/[0.06] mb-5">
-          <button
-            type="button"
-            onClick={() => {
-              setTab("login");
-              setErrorMsg("");
-              setSuccessMsg("");
-            }}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              tab === "login"
-                ? "bg-white dark:bg-[#0E2038] text-teal-700 dark:text-teal-300 shadow-xs"
-                : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-            }`}
-          >
-            Masuk
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTab("register");
-              setErrorMsg("");
-              setSuccessMsg("");
-            }}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              tab === "register"
-                ? "bg-white dark:bg-[#0E2038] text-teal-700 dark:text-teal-300 shadow-xs"
-                : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-            }`}
-          >
-            Daftar
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTab("forgot");
-              setErrorMsg("");
-              setSuccessMsg("");
-            }}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              tab === "forgot"
-                ? "bg-white dark:bg-[#0E2038] text-teal-700 dark:text-teal-300 shadow-xs"
-                : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-            }`}
-          >
-            Lupa Sandi
-          </button>
-        </div>
+        {tab !== "forgot" && (
+          <div className="flex p-1 rounded-2xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200/70 dark:border-white/[0.06] mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setTab("login");
+                setErrorMsg("");
+                setSuccessMsg("");
+              }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                tab === "login"
+                  ? "bg-white dark:bg-[#0E2038] text-teal-700 dark:text-teal-300 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              Masuk
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTab("register");
+                setErrorMsg("");
+                setSuccessMsg("");
+              }}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                tab === "register"
+                  ? "bg-white dark:bg-[#0E2038] text-teal-700 dark:text-teal-300 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              Daftar
+            </button>
+          </div>
+        )}
 
         {/* Feedback alerts */}
         {errorMsg && (
@@ -209,9 +196,24 @@ export const AuthModal = () => {
 
           {tab !== "forgot" && (
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Kata Sandi
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Kata Sandi
+                </label>
+                {tab === "login" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("forgot");
+                      setErrorMsg("");
+                      setSuccessMsg("");
+                    }}
+                    className="text-[11px] text-teal-600 dark:text-teal-400 hover:underline font-medium cursor-pointer"
+                  >
+                    Lupa sandi?
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -230,7 +232,7 @@ export const AuthModal = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             <span>
               {loading
@@ -243,6 +245,22 @@ export const AuthModal = () => {
             </span>
             <ArrowRight className="w-4 h-4" />
           </button>
+
+          {tab === "forgot" && (
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setTab("login");
+                  setErrorMsg("");
+                  setSuccessMsg("");
+                }}
+                className="text-xs text-teal-600 dark:text-teal-400 hover:underline font-medium cursor-pointer"
+              >
+                Kembali ke Halaman Masuk
+              </button>
+            </div>
+          )}
         </form>
 
         <p className="mt-4 text-[11px] text-center text-slate-500 dark:text-slate-400">

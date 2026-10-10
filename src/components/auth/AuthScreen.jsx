@@ -5,6 +5,7 @@ import {
   Lock,
   User,
   ArrowRight,
+  ArrowLeft,
   Sparkles,
   CheckCircle2,
   AlertCircle,
@@ -200,54 +201,41 @@ export const AuthScreen = () => {
               </p>
             </div>
 
-            {/* Mode Switcher Tabs */}
-            <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06] mb-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setTab("register");
-                  setErrorMsg("");
-                  setSuccessMsg("");
-                }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
-                  tab === "register"
-                    ? "bg-[#0E2038] text-teal-300 shadow-sm border border-teal-500/30"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Buat Akun
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTab("login");
-                  setErrorMsg("");
-                  setSuccessMsg("");
-                }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
-                  tab === "login"
-                    ? "bg-[#0E2038] text-teal-300 shadow-sm border border-teal-500/30"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Masuk
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTab("forgot");
-                  setErrorMsg("");
-                  setSuccessMsg("");
-                }}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
-                  tab === "forgot"
-                    ? "bg-[#0E2038] text-teal-300 shadow-sm border border-teal-500/30"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                Lupa Sandi
-              </button>
-            </div>
+            {/* Mode Switcher Tabs (Bersih 2 Pilihan) */}
+            {tab !== "forgot" && (
+              <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.06] mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("register");
+                    setErrorMsg("");
+                    setSuccessMsg("");
+                  }}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                    tab === "register"
+                      ? "bg-[#0E2038] text-teal-300 shadow-sm border border-teal-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Buat Akun
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("login");
+                    setErrorMsg("");
+                    setSuccessMsg("");
+                  }}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                    tab === "login"
+                      ? "bg-[#0E2038] text-teal-300 shadow-sm border border-teal-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Masuk
+                </button>
+              </div>
+            )}
 
             {/* Alert Messages */}
             {errorMsg && (
@@ -307,9 +295,24 @@ export const AuthScreen = () => {
               {/* Password */}
               {tab !== "forgot" && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Kata Sandi
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Kata Sandi
+                    </label>
+                    {tab === "login" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTab("forgot");
+                          setErrorMsg("");
+                          setSuccessMsg("");
+                        }}
+                        className="text-[11px] text-teal-400 hover:text-teal-300 hover:underline font-medium cursor-pointer transition-colors"
+                      >
+                        Lupa sandi?
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
@@ -384,18 +387,47 @@ export const AuthScreen = () => {
                   </>
                 )}
               </button>
+
+              {/* Back button when in forgot password mode */}
+              {tab === "forgot" && (
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("login");
+                      setErrorMsg("");
+                      setSuccessMsg("");
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-teal-300 transition-colors font-medium cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Kembali ke Halaman Masuk</span>
+                  </button>
+                </div>
+              )}
             </form>
 
             {/* Quick helper note */}
             <div className="mt-6 pt-4 border-t border-white/[0.06] text-center">
               <p className="text-[11px] text-slate-400">
-                {tab === "register" ? (
+                {tab === "forgot" ? (
+                  <span>
+                    Sudah ingat kata sandi Anda?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setTab("login")}
+                      className="text-teal-400 hover:underline font-semibold cursor-pointer"
+                    >
+                      Masuk sekarang
+                    </button>
+                  </span>
+                ) : tab === "register" ? (
                   <span>
                     Sudah memiliki akun?{" "}
                     <button
                       type="button"
                       onClick={() => setTab("login")}
-                      className="text-teal-400 hover:underline font-semibold"
+                      className="text-teal-400 hover:underline font-semibold cursor-pointer"
                     >
                       Masuk di sini
                     </button>
@@ -406,7 +438,7 @@ export const AuthScreen = () => {
                     <button
                       type="button"
                       onClick={() => setTab("register")}
-                      className="text-teal-400 hover:underline font-semibold"
+                      className="text-teal-400 hover:underline font-semibold cursor-pointer"
                     >
                       Daftar akun baru
                     </button>
